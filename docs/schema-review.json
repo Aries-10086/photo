@@ -1,0 +1,28 @@
+{
+  "schema_version": "1.1",
+  "total": 20,
+  "negative_cases": 1,
+  "denominator": 19,
+  "fully_covered": 18,
+  "weak": 1,
+  "failed": 1,
+  "mismatch": 0,
+  "coverage_pct": 94.7,
+  "verdict": "通过",
+  "weak_cases": [
+    "19"
+  ],
+  "mismatches": [],
+  "failures": [
+    {
+      "id": "20",
+      "desc": "label 写在 degrade 之前（错误用法）",
+      "expect": "fail",
+      "errors": [
+        "label 在第 0 位、degrade 在第 1 位：label 必须在 degrade 之后（先加字再降质会把字压糊）",
+        "op 顺序不单调：['label', 'degrade']（应为 layer_split < 内容操作 < degrade < label）"
+      ],
+      "note": "顺序约束应拦截：先降质再加字，否则字被压糊"
+    }
+  ]
+}

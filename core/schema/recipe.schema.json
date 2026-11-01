@@ -1,0 +1,634 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://laotubang.local/schema/recipe.schema.json",
+  "title": "Recipe (配方 / EDL)",
+  "description": "一份完整可复现的编辑计划。对应 PRD FR-3 / FR-4。所有坐标归一化 0~1，所有数值强制 clamp。v1.1 依据 20 用例反向验证补充了 flip / crop / opacity / 调色 / 换背景 / 竖排 / 阴影 等能力。",
+  "type": "object",
+  "required": ["schema_version", "recipe_id", "target", "subtype", "base_id", "ops", "created_at"],
+  "additionalProperties": false,
+  "definitions": {
+    "unit": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "归一化坐标/比例，0~1"
+    },
+    "signed_unit": {
+      "type": "number",
+      "minimum": -1,
+      "maximum": 1,
+      "description": "带符号的归一化偏移，-1~1"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]{1,64}$"
+    },
+    "hex": {
+      "type": "string",
+      "pattern": "^#[0-9A-Fa-f]{6}$"
+    },
+    "mask_ref": {
+      "type": "string",
+      "minLength": 1,
+      "description": "掩码文件路径（PNG 单通道灰度），相对于项目根目录"
+    },
+    "crop_box": {
+      "type": "array",
+      "items": {"$ref": "#/definitions/unit"},
+      "minItems": 4,
+      "maxItems": 4,
+      "description": "素材裁剪框 [x, y, w, h] 归一化，相对于素材自身。用于「只露半张脸」"
+    },
+    "degrade": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "降质参数。PRD FR-4.2",
+      "properties": {
+        "enabled": {"type": "boolean", "default": true},
+        "downscale": {
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 1.0,
+          "default": 1.0,
+          "description": "降分辨率倍数。1.0 = 不降"
+        },
+        "jpeg_quality": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 95,
+          "description": "JPEG 质量。25~45 是「糊」的常见区间"
+        },
+        "noise": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1.0,
+          "default": 0.0,
+          "description": "高斯噪声强度（相对 255 的比例）"
+        },
+        "oversharpen": {
+          "type": "string",
+          "enum": ["off", "weak", "medium", "strong"],
+          "default": "off",
+          "description": "锐化过冲，制造边缘白边"
+        }
+      }
+    },
+    "op": {
+      "type": "object",
+      "required": ["op"],
+      "oneOf": [
+        {
+          "title": "face_fit · 整脸贴合",
+          "properties": {
+            "op": {"const": "face_fit"},
+            "asset_id": {"$ref": "#/definitions/id"},
+            "center": {
+              "type": "array",
+              "items": {"$ref": "#/definitions/unit"},
+              "minItems": 2,
+              "maxItems": 2,
+              "description": "目标中心点 [x, y] 归一化"
+            },
+            "scale": {
+              "type": "number",
+              "minimum": 0.01,
+              "maximum": 10,
+              "description": "相对目标区域大小的缩放倍数。>1 = 放大（喜剧参数）"
+            },
+            "rotation_deg": {
+              "type": "number",
+              "minimum": -180,
+              "maximum": 180,
+              "default": 0
+            },
+            "flip_x": {
+              "type": "boolean",
+              "default": false,
+              "description": "水平镜像（rotation 180 不等于镜像）"
+            },
+            "flip_y": {"type": "boolean", "default": false},
+            "opacity": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 1.0
+            },
+            "edge": {
+              "type": "string",
+              "enum": ["hard", "soft", "none"],
+              "default": "hard",
+              "description": "hard = 硬边贴纸感；soft = 轻度羽化；none = 完全依赖前景遮挡"
+            },
+            "feather_px": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 60,
+              "default": 0
+            },
+            "color_transfer": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0,
+              "description": "色彩迁移强度。0 = 保留原色差（越像贴纸越好笑）"
+            },
+            "hue_shift": {
+              "type": "number",
+              "minimum": -180,
+              "maximum": 180,
+              "default": 0,
+              "description": "色相旋转角度。制造「青脸/绿脸」这类阴间效果"
+            },
+            "saturation": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 3,
+              "default": 1.0
+            },
+            "brightness": {
+              "type": "number",
+              "minimum": 0.2,
+              "maximum": 3.0,
+              "default": 1.0
+            },
+            "tint": {
+              "type": ["string", "null"],
+              "pattern": "^#[0-9A-Fa-f]{6}$",
+              "default": null,
+              "description": "整体染色（乘算），null = 不染"
+            },
+            "tint_strength": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.5
+            },
+            "crop_box": {"$ref": "#/definitions/crop_box"},
+            "light_angle_deg": {
+              "type": ["number", "null"],
+              "minimum": -180,
+              "maximum": 180,
+              "default": null,
+              "description": "主光方向，null = 不对齐"
+            },
+            "blend": {
+              "type": "string",
+              "enum": ["normal", "multiply", "screen", "overlay", "darken", "lighten"],
+              "default": "normal"
+            },
+            "mask": {"$ref": "#/definitions/mask_ref"}
+          },
+          "required": ["op", "asset_id", "center"]
+        },
+        {
+          "title": "feature_warp · 五官形变移植",
+          "properties": {
+            "op": {"const": "feature_warp"},
+            "asset_id": {"$ref": "#/definitions/id"},
+            "target_box": {
+              "type": "array",
+              "items": {"$ref": "#/definitions/unit"},
+              "minItems": 4,
+              "maxItems": 4,
+              "description": "目标孔位 [x, y, w, h] 归一化"
+            },
+            "stretch_x": {
+              "type": "number",
+              "minimum": 0.2,
+              "maximum": 5.0,
+              "default": 1.0,
+              "description": "横向拉伸比。>1 变宽"
+            },
+            "stretch_y": {
+              "type": "number",
+              "minimum": 0.2,
+              "maximum": 5.0,
+              "default": 1.0
+            },
+            "skew_deg": {
+              "type": "number",
+              "minimum": -45,
+              "maximum": 45,
+              "default": 0,
+              "description": "斜挑角度，斜挑眼是常见笑点"
+            },
+            "flip_x": {"type": "boolean", "default": false},
+            "flip_y": {"type": "boolean", "default": false},
+            "opacity": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 1.0
+            },
+            "ctrl_points": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {"$ref": "#/definitions/signed_unit"},
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "description": "TPS 控制点 [src, dst] 对，归一化；空数组 = 只用 box 映射"
+            },
+            "keep_skin_rim": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.15,
+              "description": "保留周围一圈皮肤的比例，制造色块边界"
+            },
+            "hue_shift": {
+              "type": "number",
+              "minimum": -180,
+              "maximum": 180,
+              "default": 0
+            },
+            "crop_box": {"$ref": "#/definitions/crop_box"},
+            "mask": {"$ref": "#/definitions/mask_ref"}
+          },
+          "required": ["op", "asset_id", "target_box"]
+        },
+        {
+          "title": "texture_wrap · 纹理透视贴",
+          "properties": {
+            "op": {"const": "texture_wrap"},
+            "asset_id": {"$ref": "#/definitions/id"},
+            "quad": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {"$ref": "#/definitions/unit"},
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "minItems": 4,
+              "maxItems": 4,
+              "description": "目标四角点，顺序：左上/右上/右下/左下"
+            },
+            "flip_x": {"type": "boolean", "default": false},
+            "flip_y": {"type": "boolean", "default": false},
+            "opacity": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 1.0
+            },
+            "crop_box": {"$ref": "#/definitions/crop_box"},
+            "blend": {
+              "type": "string",
+              "enum": ["normal", "multiply", "screen", "overlay", "darken", "lighten"],
+              "default": "normal"
+            },
+            "mask": {"$ref": "#/definitions/mask_ref"}
+          },
+          "required": ["op", "asset_id", "quad"]
+        },
+        {
+          "title": "sticker · 物件放置",
+          "properties": {
+            "op": {"const": "sticker"},
+            "asset_id": {"$ref": "#/definitions/id"},
+            "center": {
+              "type": "array",
+              "items": {"$ref": "#/definitions/unit"},
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "scale": {
+              "type": "number",
+              "minimum": 0.01,
+              "maximum": 20,
+              "default": 1.0,
+              "description": "相对基底长边的比例"
+            },
+            "rotation_deg": {
+              "type": "number",
+              "minimum": -180,
+              "maximum": 180,
+              "default": 0
+            },
+            "flip_x": {"type": "boolean", "default": false},
+            "flip_y": {"type": "boolean", "default": false},
+            "z": {
+              "type": "integer",
+              "minimum": -100,
+              "maximum": 100,
+              "default": 0,
+              "description": "层序，大者在上"
+            },
+            "opacity": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 1.0
+            },
+            "crop_box": {"$ref": "#/definitions/crop_box"},
+            "blend": {
+              "type": "string",
+              "enum": ["normal", "multiply", "screen", "overlay", "darken", "lighten"],
+              "default": "normal"
+            }
+          },
+          "required": ["op", "asset_id", "center"]
+        },
+        {
+          "title": "backdrop · 背景替换",
+          "description": "把基底的非主体区域整个替换掉。v1.1 新增（用例 09 暴露的缺口）",
+          "properties": {
+            "op": {"const": "backdrop"},
+            "asset_id": {"$ref": "#/definitions/id"},
+            "mode": {
+              "type": "string",
+              "enum": ["cover", "contain", "tile", "solid"],
+              "default": "cover",
+              "description": "贴合方式。solid 时用 color 字段"
+            },
+            "color": {
+              "type": "string",
+              "pattern": "^#[0-9A-Fa-f]{6}$",
+              "default": "#FFFFFF",
+              "description": "mode=solid 时的纯色背景"
+            },
+            "opacity": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 1.0
+            },
+            "subject_mask": {
+              "type": ["string", "null"],
+              "description": "主体掩码；null 则用基底的 alpha 或 replace_zone 反相"
+            },
+            "blur_px": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 60,
+              "default": 0,
+              "description": "背景虚化程度"
+            }
+          },
+          "required": ["op", "mode"]
+        },
+        {
+          "title": "grade · 整体调色",
+          "description": "对全图或指定区域做色调处理。v1.1 新增（用例 07/08 暴露的缺口）",
+          "properties": {
+            "op": {"const": "grade"},
+            "hue_shift": {
+              "type": "number",
+              "minimum": -180,
+              "maximum": 180,
+              "default": 0
+            },
+            "saturation": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 3,
+              "default": 1.0
+            },
+            "brightness": {
+              "type": "number",
+              "minimum": 0.2,
+              "maximum": 3.0,
+              "default": 1.0
+            },
+            "contrast": {
+              "type": "number",
+              "minimum": 0.2,
+              "maximum": 3.0,
+              "default": 1.0
+            },
+            "tint": {
+              "type": ["string", "null"],
+              "pattern": "^#[0-9A-Fa-f]{6}$",
+              "default": null
+            },
+            "tint_strength": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.5
+            },
+            "noise": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1.0,
+              "default": 0.0,
+              "description": "独立加噪，不伴随降质（用例 08）"
+            },
+            "mask": {"$ref": "#/definitions/mask_ref"}
+          },
+          "required": ["op"]
+        },
+        {
+          "title": "degrade · 降质",
+          "properties": {
+            "op": {"const": "degrade"},
+            "params": {"$ref": "#/definitions/degrade"}
+          },
+          "required": ["op", "params"]
+        },
+        {
+          "title": "label · 文字标签",
+          "properties": {
+            "op": {"const": "label"},
+            "text": {"type": "string", "minLength": 1, "maxLength": 80},
+            "anchor": {
+              "type": "string",
+              "enum": ["top_left", "top_right", "bottom_left", "bottom_right", "center", "custom"],
+              "default": "bottom_right"
+            },
+            "pos": {
+              "type": "array",
+              "items": {"$ref": "#/definitions/unit"},
+              "minItems": 2,
+              "maxItems": 2,
+              "description": "anchor=custom 时使用"
+            },
+            "size_ratio": {
+              "type": "number",
+              "minimum": 0.005,
+              "maximum": 0.3,
+              "default": 0.035,
+              "description": "字号 / 基底长边"
+            },
+            "font": {
+              "type": "string",
+              "default": "msyh",
+              "description": "字体键名（见 core/fonts.py）或绝对路径"
+            },
+            "vertical": {
+              "type": "boolean",
+              "default": false,
+              "description": "中文竖排（用例 12）。逐字垂直堆叠"
+            },
+            "arc_deg": {
+              "type": "number",
+              "minimum": -360,
+              "maximum": 360,
+              "default": 0,
+              "description": "路径文字：字沿圆弧排列的圆心角（用例 18）。0 = 直线；>0 向上弯；<0 向下弯"
+            },
+            "arc_radius": {
+              "type": "number",
+              "minimum": 0.02,
+              "maximum": 2.0,
+              "default": 0.3,
+              "description": "弧半径，相对基底长边。仅 arc_deg != 0 时生效"
+            },
+            "color": {"$ref": "#/definitions/hex"},
+            "color_to": {
+              "type": ["string", "null"],
+              "pattern": "^#[0-9A-Fa-f]{6}$",
+              "default": null,
+              "description": "非 null 时启用线性渐变填充，从 color 到 color_to（用例 13）"
+            },
+            "gradient_dir": {
+              "type": "string",
+              "enum": ["vertical", "horizontal", "diagonal"],
+              "default": "vertical"
+            },
+            "stroke": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 20,
+              "default": 0
+            },
+            "stroke_color": {"$ref": "#/definitions/hex"},
+            "shadow": {
+              "type": ["object", "null"],
+              "additionalProperties": false,
+              "default": null,
+              "description": "投影（用例 20）。null = 无投影",
+              "properties": {
+                "dx": {"type": "integer", "minimum": -40, "maximum": 40, "default": 3},
+                "dy": {"type": "integer", "minimum": -40, "maximum": 40, "default": 3},
+                "blur": {"type": "integer", "minimum": 0, "maximum": 40, "default": 4},
+                "color": {"$ref": "#/definitions/hex"},
+                "opacity": {"type": "number", "minimum": 0, "maximum": 1, "default": 0.7}
+              }
+            },
+            "letter_spacing": {
+              "type": "number",
+              "minimum": -0.2,
+              "maximum": 1.0,
+              "default": 0,
+              "description": "字距，相对字号的倍数"
+            },
+            "line_spacing": {
+              "type": "number",
+              "minimum": 0.5,
+              "maximum": 3.0,
+              "default": 1.15
+            },
+            "max_width": {
+              "type": ["number", "null"],
+              "minimum": 0.02,
+              "maximum": 1.0,
+              "default": null,
+              "description": "最大行宽（归一化），超出自动换行；null = 不换行"
+            },
+            "rotation_deg": {
+              "type": "number",
+              "minimum": -90,
+              "maximum": 90,
+              "default": 0,
+              "description": "轻微旋转，歪一点更像人做的"
+            },
+            "opacity": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 1.0
+            }
+          },
+          "required": ["op", "text"]
+        }
+      ]
+    }
+  },
+  "properties": {
+    "schema_version": {"type": "string", "const": "1.1"},
+    "recipe_id": {"$ref": "#/definitions/id"},
+    "title": {"type": ["string", "null"], "maxLength": 60},
+    "target": {
+      "type": "string",
+      "enum": ["stitch"],
+      "description": "v2 只有 stitch。blend/generate 已从 v1 范围移除"
+    },
+    "subtype": {
+      "type": "string",
+      "enum": ["precise", "distort", "stack", "rewear"],
+      "description": "A 精贴 / B 畸变 / C 堆叠 / D 换装"
+    },
+    "base_id": {"$ref": "#/definitions/id"},
+    "base_transform": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "基底本身的变换（用例 10 的镜像翻转）",
+      "properties": {
+        "flip_x": {"type": "boolean", "default": false},
+        "flip_y": {"type": "boolean", "default": false},
+        "rotation_deg": {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180,
+          "default": 0
+        },
+        "crop_box": {"$ref": "#/definitions/crop_box"}
+      }
+    },
+    "layers": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "foreground": {
+          "type": ["string", "null"],
+          "description": "前景遮挡层掩码路径（头发/手/道具）"
+        },
+        "replace_zone": {
+          "type": ["string", "null"],
+          "description": "被替换区掩码路径"
+        }
+      },
+      "description": "A 类专用：预计算的分层掩码，入库时生成后可手改"
+    },
+    "ops": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "items": {"$ref": "#/definitions/op"},
+      "description": "有序操作序列，执行顺序即数组顺序"
+    },
+    "degrade": {"$ref": "#/definitions/degrade"},
+    "notes": {"type": ["string", "null"], "maxLength": 500},
+    "created_at": {"type": "string", "format": "date-time"},
+    "parent": {
+      "type": ["string", "null"],
+      "description": "派生自哪个 recipe_id，支持「再来一张」"
+    }
+  },
+  "allOf": [
+    {
+      "description": "precise 子类型必须带 layers",
+      "if": {"properties": {"subtype": {"const": "precise"}}, "required": ["subtype"]},
+      "then": {"required": ["layers"]}
+    },
+    {
+      "description": "distort 子类型必须启用降质（B 类靠糊取胜）",
+      "if": {"properties": {"subtype": {"const": "distort"}}, "required": ["subtype"]},
+      "then": {
+        "properties": {
+          "degrade": {"properties": {"enabled": {"const": true}}}
+        }
+      }
+    },
+    {
+      "description": "声明了 degrade 时必须带 enabled 字段",
+      "if": {"properties": {"degrade": {"type": "object"}}, "required": ["degrade"]},
+      "then": {"properties": {"degrade": {"required": ["enabled"]}}}
+    }
+  ],
+  "$comment": "op 的先后顺序（label 必须在 degrade 之后、layer_split 必须最先）无法用 JSON Schema 表达，由 core/validate.py 的 check_op_order 校验。"
+}

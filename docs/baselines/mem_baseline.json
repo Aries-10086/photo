@@ -1,0 +1,45 @@
+{
+  "budget_mb": 1536,
+  "max_rss_mb": 243.7,
+  "verdict": "通过",
+  "cpu_count": 32,
+  "ort_version": "1.31.1",
+  "cases": [
+    {
+      "case": "U2Netp-like",
+      "params_M": null,
+      "input": "320x320",
+      "rss_before_mb": 63.4,
+      "rss_after_load_mb": 72.2,
+      "rss_after_infer_mb": 100.1,
+      "delta_mb": 36.8,
+      "load_s": 0.03,
+      "infer_s": 0.021,
+      "rss_after_release_mb": 70.1,
+      "released": true
+    },
+    {
+      "case": "RMBG-like",
+      "params_M": null,
+      "input": "512x512",
+      "rss_before_mb": 88.9,
+      "rss_after_load_mb": 107.6,
+      "rss_after_infer_mb": 243.7,
+      "delta_mb": 154.8,
+      "load_s": 0.03,
+      "infer_s": 1.934,
+      "rss_after_release_mb": 89.1,
+      "released": true
+    },
+    {
+      "case": "2048px 综合处理",
+      "input": "2048x2048",
+      "rss_before_mb": 89.6,
+      "rss_after_load_mb": null,
+      "rss_after_infer_mb": 198.4,
+      "delta_mb": 108.8,
+      "load_s": null,
+      "infer_s": 0.162
+    }
+  ]
+}

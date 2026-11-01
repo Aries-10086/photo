@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://laotubang.local/schema/memory.schema.json",
+  "title": "Memory (记忆条目)",
+  "description": "定义层的一条记忆。对应 PRD FR-6.1。设计目标：人能读懂、能手改、能备份。",
+  "type": "object",
+  "required": ["id", "type", "key", "value", "confidence", "evidence_count", "created_at", "last_confirmed"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{4,64}$"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["combo", "hand", "caption", "base", "asset", "subtype_pref"],
+      "description": "combo=成功组合 hand=手感参数 caption=配文习惯 base=可下手基底池 asset=素材偏好 subtype_pref=惯用子类型"
+    },
+    "key": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120,
+      "description": "记忆的键。combo 形如 'asset:kobe × base:jingyuan × slot:face'"
+    },
+    "value": {
+      "description": "记忆的值。结构随 type 而定，见 value_shapes 说明。",
+      "type": ["string", "number", "boolean", "object", "array"]
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "置信度 0~1。低于 0.3 归档，不参与生成。"
+    },
+    "evidence_count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "支撑这条记忆的事件数。写入阈值 ≥ 2。"
+    },
+    "positive_count": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0
+    },
+    "negative_count": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0
+    },
+    "conditions": {
+      "type": "array",
+      "default": [],
+      "items": {"type": "string", "minLength": 1, "maxLength": 60},
+      "description": "生效条件。冲突不覆盖，而是加条件，例如 ['default'] / ['night_scene']"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["active", "archived", "deleted"],
+      "default": "active",
+      "description": "active 参与生成；archived 保留但不加载；deleted 软删除"
+    },
+    "weight": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 2,
+      "default": 1.0,
+      "description": "时间衰减后的实际权重 = f(evidence) × g(recency)"
+    },
+    "source_events": {
+      "type": "array",
+      "default": [],
+      "items": {"type": "string"},
+      "description": "可追溯的事件 id 列表"
+    },
+    "hand_edited": {
+      "type": "boolean",
+      "default": false,
+      "description": "人工改过的记忆不被自动流程覆盖"
+    },
+    "created_at": {"type": "string", "format": "date-time"},
+    "last_confirmed": {"type": "string", "format": "date-time"}
+  },
+  "$comment": "value_shapes —— combo: {base_id, asset_ids[], slot, subtype, sample_recipe_id} | hand: {param_path, value, sample_recipe_id} | caption: {avg_len, position, tone, samples[]} | base: {base_id, open_score, occlusion_score} | asset: {asset_id, usable_count} | subtype_pref: {subtype, ratio}"
+}

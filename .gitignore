@@ -1,0 +1,35 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# 运行时产物
+tmp/*
+!tmp/.gitkeep
+outputs/*
+!outputs/.gitkeep
+
+# 素材（体积大，不入库；用本地备份）
+assets/raw/*
+!assets/raw/.gitkeep
+assets/cut/*
+!assets/cut/.gitkeep
+assets/masks/*
+!assets/masks/.gitkeep
+
+# 模型文件
+models/
+*.onnx
+*.pth
+*.bin
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 日志
+*.log

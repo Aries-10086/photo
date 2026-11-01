@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://laotubang.local/schema/asset.schema.json",
+  "title": "Symbol Card (素材卡)",
+  "description": "一张素材的结构化描述卡。素材 = 被贴进基底图的内容（脸、五官、物件、纹理）。对应 PRD FR-1。",
+  "type": "object",
+  "required": ["id", "image", "slots", "domain", "circle", "created_at"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "default": "1.0",
+      "description": "Schema 版本，用于迁移"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{4,64}$",
+      "description": "唯一标识，建议 领域_短名_哈希前6位"
+    },
+    "image": {
+      "type": "string",
+      "minLength": 1,
+      "description": "抠好的素材本体（PNG，含 alpha），相对于项目根目录"
+    },
+    "original": {
+      "type": ["string", "null"],
+      "description": "原图路径，用于追溯来源；手工绘制/来源不明的素材可为 null"
+    },
+    "thumb": {
+      "type": ["string", "null"],
+      "description": "缩略图路径，前端列表用；可为 null 由前端现生成"
+    },
+    "slots": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": ["face", "eyes", "mouth", "nose", "hand", "head", "body", "texture", "any"]
+      },
+      "description": "可放置的槽位类型"
+    },
+    "domain": {
+      "type": "string",
+      "enum": ["real", "anime", "product", "brand", "mascot", "text", "object"],
+      "description": "语义域：真人/二次元/商品/品牌/吉祥物/文字/物件"
+    },
+    "circle": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "basketball", "game", "hsr", "daily_chem", "drink", "internet_meme",
+          "anime", "sports", "food", "other"
+        ]
+      },
+      "description": "所属圈层，用于计算语义冲突"
+    },
+    "mood": {
+      "type": ["string", "null"],
+      "enum": ["serious", "cute", "creepy", "innocent", "angry", "calm", null],
+      "description": "情绪基调"
+    },
+    "parts": {
+      "type": "array",
+      "uniqueItems": true,
+      "default": [],
+      "items": {
+        "type": "string",
+        "enum": ["full_face", "single_eye", "single_mouth", "full_body", "single_object", "patch"]
+      },
+      "description": "已切分出的部位；空数组表示未切分"
+    },
+    "tags": {
+      "type": "array",
+      "uniqueItems": true,
+      "default": [],
+      "items": {"type": "string", "minLength": 1, "maxLength": 24},
+      "description": "自由标签，手改优先于自动"
+    },
+    "hand_edited": {
+      "type": "array",
+      "uniqueItems": true,
+      "default": [],
+      "items": {
+        "type": "string",
+        "enum": ["slots", "domain", "circle", "mood", "parts", "tags"]
+      },
+      "description": "哪些字段被人工改过；这些字段不再被自动识别覆盖"
+    },
+    "source": {
+      "type": ["string", "null"],
+      "description": "素材来源说明，可追溯"
+    },
+    "usable_count": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0,
+      "description": "被采纳次数，由行为自动累加，不可手改"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    }
+  },
+  "allOf": [
+    {
+      "description": "纹理类素材必须声明 texture 槽位或 patch 部位之一",
+      "if": {
+        "properties": {"domain": {"const": "object"}},
+        "required": ["domain"]
+      },
+      "then": {
+        "anyOf": [
+          {"properties": {"slots": {"contains": {"const": "texture"}}}},
+          {"properties": {"parts": {"contains": {"const": "patch"}}}}
+        ]
+      }
+    }
+  ]
+}
