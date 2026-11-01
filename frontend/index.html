@@ -32,6 +32,19 @@ button:hover{background:#2a2e3a; border-color:#3d4252}
 button.primary{background:#2c4a7c; border-color:#3d6299; color:#dbe8ff}
 button.primary:hover{background:#345a94}
 main{flex:1; display:flex; min-height:0}
+#offlineBar{
+  display:none; align-items:center; gap:10px; padding:7px 14px; flex-shrink:0;
+  background:#3a2323; border-bottom:1px solid #552e2e; color:#e8998f; font-size:12px;
+}
+#offlineBar .dot{
+  width:8px; height:8px; border-radius:50%; background:#e8685a;
+  animation:blink 1s ease-in-out infinite;
+}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+#offlineBar code{
+  background:#2a1a1a; padding:1px 6px; border-radius:3px;
+  font:11px/1.5 Consolas,monospace; color:#f0b3a9;
+}
 #stageWrap{flex:1; min-width:0; display:flex; flex-direction:column; background:#0f1014}
 #stage{flex:1; position:relative; overflow:hidden; display:flex; align-items:center;
   justify-content:center; gap:2px; padding:12px}
@@ -106,6 +119,12 @@ legend{font-size:11px; color:var(--dim); padding:0 5px}
 
 <main>
   <div id="stageWrap">
+    <div id="offlineBar">
+      <span class="dot"></span>
+      <span><b>服务已断开</b> — 后端进程不在了。第 <span id="offlineTries">0</span> 次重试中…</span>
+      <span style="flex:1"></span>
+      <span>解决办法：回到项目目录双击 <code>启动校准器.bat</code>，连上后这里会自动恢复</span>
+    </div>
     <div id="stage">
       <div class="pane" id="paneRef">
         <span class="cap">参考（原牢图）</span>
@@ -325,9 +344,10 @@ const OP_DEFS = {
 
 const $ = id => document.getElementById(id);
 
-async function init(){
+async function init(isReconnect){
   const r = await fetch("/api/env");
-  S.env = await r.json();
+  const env = await r.json();
+  S.env = env;
 
   $("selBase").innerHTML = S.env.bases.map(b =>
     `<option value="${b.path}">${b.name} · ${b.w}×${b.h}</option>`).join("");
@@ -342,6 +362,12 @@ async function init(){
     .map(([k,v]) => `<option value="${k}">${v.label}</option>`).join("");
 
   $("stAssets").textContent = `${S.env.assets.length} 个素材`;
+
+  if (isReconnect){
+    // 重连：保留用户当前的配方、基底选择、参考图
+    renderOpList(true);
+    return;
+  }
 
   const prefer = S.env.bases.find(b => b.name === "image copy.png")
               || S.env.bases.find(b => b.name === "image.png")
@@ -683,12 +709,51 @@ async function doRender(){
     $("stHint").textContent = "";
     if (!d.valid && d.errors.length) flash(d.errors[0],"warn");
     syncJsonBox();
+    setOffline(false);
   } catch(e){
-    flash("网络错误: " + e.message,"err");
+    // 服务断了 —— 不刷屏报错，进入离线态并轮询恢复
+    setOffline(true);
+    startReconnect();
   } finally {
     S.rendering = false;
     if (S.pending){ S.pending = false; doRender(); }
   }
+}
+
+// ---------------------------------------------------------- 断线重连
+
+let offlineTimer = null;
+
+function setOffline(on){
+  const bar = $("offlineBar");
+  if (on){
+    bar.style.display = "flex";
+    $("stHint").textContent = "服务已断开";
+  } else {
+    if (bar.style.display !== "none"){
+      bar.style.display = "none";
+      flash("已重新连接","ok");
+    }
+  }
+}
+
+function startReconnect(){
+  if (offlineTimer) return;
+  let tries = 0;
+  offlineTimer = setInterval(async () => {
+    tries++;
+    $("offlineTries").textContent = tries;
+    try {
+      const r = await fetch("/api/health", { cache:"no-store" });
+      if (r.ok){
+        clearInterval(offlineTimer);
+        offlineTimer = null;
+        setOffline(false);
+        await init(true);          // 重载环境数据但保留当前配方
+        doRender();
+      }
+    } catch(_) { /* 继续等 */ }
+  }, 2000);
 }
 
 function syncJsonBox(){
