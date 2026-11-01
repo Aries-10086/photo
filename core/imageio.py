@@ -35,9 +35,32 @@ RGB = "RGB"
 L = "L"
 LA = "LA"
 
+MAX_PATH_WARN = 200
+"""路径长度告警阈值。Windows 未启用长路径时上限 260，留 60 字符给后续嵌套。"""
+
 
 class ImageIOError(Exception):
     """图像读写失败，附带可读原因。"""
+
+
+class PathTooLongWarning(UserWarning):
+    """路径接近 Windows MAX_PATH 上限。"""
+
+
+def _check_path_len(p: Path) -> None:
+    """路径过长时给出警告（不抛错，因为实测项目内最坏 176 字符，远未到限）。
+
+    真正超限时 PIL 会抛 OSError，那时错误信息不友好，所以这里提前提示。
+    """
+    n = len(str(p.resolve()))
+    if n >= MAX_PATH_WARN:
+        import warnings
+        warnings.warn(
+            f"路径长度 {n} 字符，接近 Windows 上限 260（长路径未启用时）。"
+            f"建议缩短文件名或用更短的目录层级: {p.name}",
+            PathTooLongWarning,
+            stacklevel=3,
+        )
 
 
 # ---------------------------------------------------------------- 读
@@ -145,6 +168,7 @@ def write(
     p.parent.mkdir(parents=True, exist_ok=True)
     if p.suffix.lower() not in ALLOWED_OUT:
         raise ImageIOError(f"不支持的输出格式 {p.suffix}，允许: {sorted(ALLOWED_OUT)}")
+    _check_path_len(p)
 
     if p.suffix.lower() in (".jpg", ".jpeg"):
         if img.mode in ("RGBA", "LA", "P"):
