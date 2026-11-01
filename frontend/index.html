@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>牢图棒 · 基线校准器</title>
+<style>
+:root{
+  --bg:#14151a; --panel:#1c1e26; --panel2:#232631; --line:#2e3240;
+  --text:#e8eaf0; --dim:#8b91a3; --accent:#6ea8fe; --ok:#5ec98a; --warn:#e8b44a; --err:#e8685a;
+  --radius:8px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--bg); color:var(--text); overflow:hidden;
+  font:13px/1.5 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif;
+  display:flex; flex-direction:column;
+}
+header{
+  display:flex; align-items:center; gap:12px; padding:10px 14px;
+  background:var(--panel); border-bottom:1px solid var(--line); flex-shrink:0;
+}
+header h1{font-size:14px; font-weight:500}
+header .badge{font-size:11px; padding:2px 7px; border-radius:4px; background:var(--panel2); color:var(--dim)}
+header .spacer{flex:1}
+button{
+  font:inherit; color:var(--text); background:var(--panel2); border:1px solid var(--line);
+  padding:5px 11px; border-radius:6px; cursor:pointer; transition:.12s;
+}
+button:hover{background:#2a2e3a; border-color:#3d4252}
+button.primary{background:#2c4a7c; border-color:#3d6299; color:#dbe8ff}
+button.primary:hover{background:#345a94}
+main{flex:1; display:flex; min-height:0}
+#stageWrap{flex:1; min-width:0; display:flex; flex-direction:column; background:#0f1014}
+#stage{flex:1; position:relative; overflow:hidden; display:flex; align-items:center;
+  justify-content:center; gap:2px; padding:12px}
+.pane{position:relative; height:100%; display:flex; align-items:center;
+  justify-content:center; flex:1; min-width:0}
+.pane img{max-width:100%; max-height:100%; object-fit:contain; box-shadow:0 2px 14px rgba(0,0,0,.5)}
+.pane .cap{position:absolute; top:2px; left:6px; font-size:11px; color:var(--dim);
+  background:rgba(20,21,26,.82); padding:1px 6px; border-radius:3px}
+.pane.drag{cursor:grab}
+.pane.drag:active{cursor:grabbing}
+#statusBar{flex-shrink:0; display:flex; gap:14px; padding:5px 14px; font-size:11px;
+  color:var(--dim); background:var(--panel); border-top:1px solid var(--line)}
+#statusBar .k{color:#5f6577}
+#statusBar .v{color:var(--text)}
+aside{width:390px; flex-shrink:0; background:var(--panel); border-left:1px solid var(--line);
+  display:flex; flex-direction:column; min-height:0}
+.tabs{display:flex; border-bottom:1px solid var(--line); flex-shrink:0}
+.tabs button{flex:1; border:0; border-radius:0; background:transparent; padding:9px 4px;
+  color:var(--dim); font-size:12px; border-bottom:2px solid transparent}
+.tabs button.on{color:var(--text); border-bottom-color:var(--accent); background:var(--panel2)}
+.tabBody{flex:1; overflow-y:auto; padding:12px}
+.tabBody::-webkit-scrollbar{width:9px}
+.tabBody::-webkit-scrollbar-thumb{background:#2e3240; border-radius:5px}
+.row{display:flex; align-items:center; gap:8px; margin-bottom:7px}
+.row label{flex:0 0 84px; font-size:11.5px; color:var(--dim)}
+.row input[type=range]{flex:1; min-width:0; accent-color:var(--accent); height:16px}
+.row .num{width:56px; flex-shrink:0; background:var(--panel2); border:1px solid var(--line);
+  color:var(--text); border-radius:4px; padding:2px 5px; font-size:11.5px; text-align:right}
+.row select,.row input[type=text]{flex:1; min-width:0; background:var(--panel2);
+  border:1px solid var(--line); color:var(--text); border-radius:4px; padding:4px 6px;
+  font:inherit; font-size:11.5px}
+.row input[type=color]{width:34px; height:22px; padding:0; border:1px solid var(--line);
+  border-radius:4px; background:var(--panel2); cursor:pointer}
+.row.chk label{flex:1}
+.row.chk input{accent-color:var(--accent)}
+fieldset{border:1px solid var(--line); border-radius:var(--radius); padding:9px 10px; margin-bottom:11px}
+legend{font-size:11px; color:var(--dim); padding:0 5px}
+.opcard{border:1px solid var(--line); border-radius:var(--radius); margin-bottom:9px;
+  background:var(--panel2); overflow:hidden}
+.ophead{display:flex; align-items:center; gap:7px; padding:6px 9px; cursor:pointer;
+  background:#262a35; font-size:11.5px}
+.ophead .nm{font-weight:500; color:var(--accent)}
+.ophead .sum{flex:1; color:var(--dim); font-size:10.5px; text-align:right;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.ophead .x{color:#6b7080; padding:0 3px; border-radius:3px}
+.ophead .x:hover{color:var(--err); background:#33262a}
+.opbody{padding:8px 10px; display:none}
+.opcard.open .opbody{display:block}
+.opcard.disabled{opacity:.45}
+.empty{color:var(--dim); font-size:12px; text-align:center; padding:24px 10px; line-height:1.8}
+.footbar{flex-shrink:0; border-top:1px solid var(--line); padding:9px 12px;
+  display:flex; gap:8px; background:var(--panel)}
+#saveName{flex:1; background:var(--panel2); border:1px solid var(--line); color:var(--text);
+  border-radius:5px; padding:6px 8px; font:inherit; font-size:11.5px; min-width:0}
+.msg{font-size:11px; padding:6px 9px; border-radius:5px; margin-bottom:9px; display:none}
+.msg.show{display:block}
+.msg.ok{background:#1e382a; color:#8fe0aa; border:1px solid #2a5138}
+.msg.warn{background:#3a3220; color:#e8c877; border:1px solid #554624}
+.msg.err{background:#3a2323; color:#e8998f; border:1px solid #552e2e}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>牢图棒 · 基线校准器</h1>
+  <span class="badge" id="subtypeBadge">B 畸变</span>
+  <span class="spacer"></span>
+  <button id="btnLoadRef">参考=当前基底</button>
+  <button id="btnReset">重置</button>
+  <button class="primary" id="btnSave">保存为基线</button>
+</header>
+
+<main>
+  <div id="stageWrap">
+    <div id="stage">
+      <div class="pane" id="paneRef">
+        <span class="cap">参考（原牢图）</span>
+        <img id="imgRef" alt="">
+      </div>
+      <div class="pane drag" id="paneOut">
+        <span class="cap">你的复刻（可拖动选中元素）</span>
+        <img id="imgOut" alt="">
+      </div>
+    </div>
+    <div id="statusBar">
+      <span><span class="k">渲染</span> <span class="v" id="stMs">—</span></span>
+      <span><span class="k">尺寸</span> <span class="v" id="stSize">—</span></span>
+      <span><span class="k">配方</span> <span class="v" id="stValid">—</span></span>
+      <span><span class="k">素材</span> <span class="v" id="stAssets">—</span></span>
+      <span style="flex:1"></span>
+      <span id="stHint" style="color:#5f6577"></span>
+    </div>
+  </div>
+
+  <aside>
+    <div class="tabs">
+      <button data-tab="base" class="on">基底</button>
+      <button data-tab="ops">操作</button>
+      <button data-tab="json">JSON</button>
+      <button data-tab="help">说明</button>
+    </div>
+
+    <div class="tabBody" id="tab-base">
+      <div class="msg" id="msgBox"></div>
+
+      <fieldset>
+        <legend>基底图</legend>
+        <div class="row"><label>选择</label><select id="selBase"></select></div>
+        <div class="row chk"><label>水平镜像</label><input type="checkbox" id="btFlipX"></div>
+        <div class="row">
+          <label>旋转</label>
+          <input type="range" id="btRot" min="-180" max="180" step="1" value="0">
+          <input class="num" id="btRotN" type="number" value="0">
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>参考图（左侧对照）</legend>
+        <div class="row"><label>选择</label><select id="selRef"></select></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>子类型</legend>
+        <div class="row">
+          <label>类型</label>
+          <select id="selSubtype">
+            <option value="precise">A 精贴</option>
+            <option value="distort" selected>B 畸变</option>
+            <option value="stack">C 堆叠</option>
+            <option value="rewear">D 换装</option>
+          </select>
+        </div>
+        <div class="row"><label>命名</label><input type="text" id="recipeId" value="baseline_B"></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>前景遮挡层（仅 A 类）</legend>
+        <div class="row"><label>前景掩码</label><select id="selFg"><option value="">（无）</option></select></div>
+        <div class="row"><label>替换区</label><select id="selRz"><option value="">（无）</option></select></div>
+      </fieldset>
+    </div>
+
+    <div class="tabBody" id="tab-ops" style="display:none">
+      <div style="display:flex;gap:6px;margin-bottom:10px">
+        <select id="selAddOp" style="flex:1;background:var(--panel2);border:1px solid var(--line);
+          color:var(--text);border-radius:5px;padding:5px"></select>
+        <button id="btnAddOp" class="primary">+ 添加</button>
+      </div>
+      <div id="opList"></div>
+    </div>
+
+    <div class="tabBody" id="tab-json" style="display:none">
+      <p style="color:var(--dim);font-size:11px;margin-bottom:8px">可直接编辑，改完按「应用 JSON」。</p>
+      <textarea id="jsonBox" spellcheck="false" style="width:100%;height:calc(100vh - 230px);
+        background:var(--panel2);border:1px solid var(--line);color:var(--text);
+        border-radius:6px;padding:9px;font:11px/1.5 Consolas,monospace;resize:none"></textarea>
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <button id="btnApplyJson" class="primary" style="flex:1">应用 JSON</button>
+        <button id="btnCopyJson">复制</button>
+      </div>
+    </div>
+
+    <div class="tabBody" id="tab-help" style="display:none">
+      <div style="line-height:1.9;color:var(--dim);font-size:12px">
+        <b style="color:var(--text)">怎么用</b><br>
+        1. 基底选要改的角色图<br>
+        2. 参考图选原牢图（左侧对照）<br>
+        3. 「操作」页添加 op<br>
+        4. 拖滑块，让右边越来越像左边<br>
+        5. 点右上「保存为基线」<br><br>
+        <b style="color:var(--text)">调参心得</b><br>
+        · <b>B 畸变</b>：先调 stretch_x 到「明显歪」，再调 degrade 到「明显糊」<br>
+        · <b>C 堆叠</b>：先定位置，再调 scale，最后决定降质<br>
+        · <b>D 换装</b>：texture_wrap 四角点决定成败<br>
+        · <b>A 精贴</b>：edge 设 none，靠前景掩码挡，不要羽化<br><br>
+        <b style="color:var(--text)">拖动</b><br>
+        右边图上直接拖，可移动当前选中元素。
+      </div>
+    </div>
+
+    <div class="footbar">
+      <input type="text" id="saveName" value="baseline_B.json" placeholder="文件名.json">
+      <button class="primary" id="btnSave2">保存</button>
+    </div>
+  </aside>
+</main>
+
+<script>
+const S = { env:null, recipe:null, refPath:"", selectedOp:-1, rendering:false, pending:false };
+
+const OP_DEFS = {
+  sticker:{
+    label:"sticker 物件放置",
+    defaults:{ center:[0.5,0.5], scale:0.2, rotation_deg:0, opacity:1, z:0, flip_x:false, blend:"normal" },
+    fields:[
+      {k:"asset_id",t:"select",label:"素材"},
+      {k:"center",t:"point",label:"位置"},
+      {k:"scale",t:"range",label:"大小",min:0.01,max:1.5,step:0.005},
+      {k:"rotation_deg",t:"range",label:"旋转",min:-180,max:180,step:1},
+      {k:"opacity",t:"range",label:"不透明度",min:0,max:1,step:0.01},
+      {k:"z",t:"range",label:"层序",min:-10,max:10,step:1},
+      {k:"blend",t:"select",label:"混合",opts:["normal","multiply","screen","overlay","darken","lighten"]},
+      {k:"flip_x",t:"chk",label:"水平翻转"},
+    ]},
+  face_fit:{
+    label:"face_fit 整脸贴合",
+    defaults:{ center:[0.5,0.4], scale:0.5, rotation_deg:0, edge:"hard", color_transfer:0, opacity:1, hue_shift:0, saturation:1 },
+    fields:[
+      {k:"asset_id",t:"select",label:"素材"},
+      {k:"center",t:"point",label:"位置"},
+      {k:"scale",t:"range",label:"大小",min:0.05,max:2.0,step:0.005},
+      {k:"rotation_deg",t:"range",label:"旋转",min:-90,max:90,step:1},
+      {k:"edge",t:"select",label:"边缘",opts:["hard","soft","none"]},
+      {k:"feather_px",t:"range",label:"羽化px",min:0,max:40,step:1},
+      {k:"color_transfer",t:"range",label:"色彩迁移",min:0,max:1,step:0.01},
+      {k:"opacity",t:"range",label:"不透明度",min:0,max:1,step:0.01},
+      {k:"hue_shift",t:"range",label:"色相",min:-180,max:180,step:1},
+      {k:"saturation",t:"range",label:"饱和",min:0,max:3,step:0.01},
+      {k:"flip_x",t:"chk",label:"水平翻转"},
+    ]},
+  feature_warp:{
+    label:"feature_warp 五官形变",
+    defaults:{ target_box:[0.35,0.4,0.3,0.18], stretch_x:1.0, stretch_y:1.0, skew_deg:0, keep_skin_rim:0.15, opacity:1, hue_shift:0 },
+    fields:[
+      {k:"asset_id",t:"select",label:"素材"},
+      {k:"target_box",t:"box",label:"孔位"},
+      {k:"stretch_x",t:"range",label:"横拉伸",min:0.2,max:4,step:0.05},
+      {k:"stretch_y",t:"range",label:"纵拉伸",min:0.2,max:4,step:0.05},
+      {k:"skew_deg",t:"range",label:"斜挑",min:-40,max:40,step:1},
+      {k:"keep_skin_rim",t:"range",label:"带皮圈",min:0,max:0.8,step:0.01},
+      {k:"hue_shift",t:"range",label:"色相",min:-180,max:180,step:1},
+      {k:"opacity",t:"range",label:"不透明度",min:0,max:1,step:0.01},
+      {k:"flip_x",t:"chk",label:"水平翻转"},
+    ]},
+  texture_wrap:{
+    label:"texture_wrap 纹理透视",
+    defaults:{ quad:[[0.32,0.44],[0.68,0.44],[0.70,0.78],[0.30,0.78]], opacity:1, blend:"normal" },
+    fields:[
+      {k:"asset_id",t:"select",label:"素材"},
+      {k:"quad",t:"quad",label:"四角点"},
+      {k:"opacity",t:"range",label:"不透明度",min:0,max:1,step:0.01},
+      {k:"blend",t:"select",label:"混合",opts:["normal","multiply","screen","overlay","darken","lighten"]},
+      {k:"flip_x",t:"chk",label:"水平翻转"},
+    ]},
+  backdrop:{
+    label:"backdrop 背景替换",
+    defaults:{ mode:"solid", color:"#FFFFFF", opacity:1, blur_px:0 },
+    fields:[
+      {k:"mode",t:"select",label:"模式",opts:["solid","cover","contain","tile"]},
+      {k:"asset_id",t:"select",label:"素材"},
+      {k:"color",t:"color",label:"纯色"},
+      {k:"blur_px",t:"range",label:"虚化",min:0,max:40,step:1},
+      {k:"opacity",t:"range",label:"不透明度",min:0,max:1,step:0.01},
+      {k:"subject_mask",t:"select",label:"主体掩码"},
+    ]},
+  grade:{
+    label:"grade 整体调色",
+    defaults:{ hue_shift:0, saturation:1, brightness:1, contrast:1, noise:0 },
+    fields:[
+      {k:"hue_shift",t:"range",label:"色相",min:-180,max:180,step:1},
+      {k:"saturation",t:"range",label:"饱和",min:0,max:3,step:0.01},
+      {k:"brightness",t:"range",label:"亮度",min:0.2,max:2,step:0.01},
+      {k:"contrast",t:"range",label:"对比",min:0.2,max:2.5,step:0.01},
+      {k:"noise",t:"range",label:"噪点",min:0,max:0.3,step:0.005},
+    ]},
+  degrade:{
+    label:"degrade 降质",
+    defaults:{ params:{ enabled:true, downscale:0.7, jpeg_quality:45, noise:0.01, oversharpen:"off" } },
+    fields:[
+      {k:"enabled",t:"chk",label:"启用",path:"params"},
+      {k:"downscale",t:"range",label:"降分辨率",min:0.3,max:1,step:0.01,path:"params"},
+      {k:"jpeg_quality",t:"range",label:"JPEG质量",min:5,max:100,step:1,path:"params"},
+      {k:"noise",t:"range",label:"噪点",min:0,max:0.2,step:0.002,path:"params"},
+      {k:"oversharpen",t:"select",label:"锐化",opts:["off","weak","medium","strong"],path:"params"},
+    ]},
+  label:{
+    label:"label 文字标签",
+    defaults:{ text:"牢", anchor:"bottom_right", size_ratio:0.035, color:"#FFFFFF", stroke:0, stroke_color:"#000000", opacity:1 },
+    fields:[
+      {k:"text",t:"text",label:"文本"},
+      {k:"anchor",t:"select",label:"锚点",opts:["top_left","top_right","bottom_left","bottom_right","center"]},
+      {k:"size_ratio",t:"range",label:"字号比",min:0.005,max:0.2,step:0.001},
+      {k:"color",t:"color",label:"颜色"},
+      {k:"stroke",t:"range",label:"描边",min:0,max:12,step:1},
+      {k:"stroke_color",t:"color",label:"描边色"},
+      {k:"vertical",t:"chk",label:"竖排"},
+      {k:"rotation_deg",t:"range",label:"旋转",min:-45,max:45,step:1},
+      {k:"opacity",t:"range",label:"不透明度",min:0,max:1,step:0.01},
+    ]},
+};
+
+const $ = id => document.getElementById(id);
+
+async function init(){
+  const r = await fetch("/api/env");
+  S.env = await r.json();
+
+  $("selBase").innerHTML = S.env.bases.map(b =>
+    `<option value="${b.path}">${b.name} · ${b.w}×${b.h}</option>`).join("");
+  $("selRef").innerHTML = S.env.bases.map(b =>
+    `<option value="${b.path}">${b.name}</option>`).join("");
+
+  const maskOpts = S.env.masks.map(m => `<option value="${m.path}">${m.id}</option>`).join("");
+  $("selFg").innerHTML = '<option value="">（无）</option>' + maskOpts;
+  $("selRz").innerHTML = '<option value="">（无）</option>' + maskOpts;
+
+  $("selAddOp").innerHTML = Object.entries(OP_DEFS)
+    .map(([k,v]) => `<option value="${k}">${v.label}</option>`).join("");
+
+  $("stAssets").textContent = `${S.env.assets.length} 个素材`;
+
+  const prefer = S.env.bases.find(b => b.name === "image copy.png")
+              || S.env.bases.find(b => b.name === "image.png")
+              || S.env.bases[0];
+  if (prefer){ $("selBase").value = prefer.path; $("selRef").value = prefer.path; }
+
+  S.recipe = newRecipe("distort");
+  bindUI();
+  await loadRef();
+  renderOpList();
+  await doRender();
+}
+
+function newRecipe(subtype){
+  return {
+    schema_version:"1.1",
+    recipe_id:"baseline_" + subtype,
+    title:null,
+    target:"stitch",
+    subtype:subtype,
+    base_id:"calib",
+    ops:[],
+    degrade:{enabled:false,downscale:1.0,jpeg_quality:92,noise:0.0,oversharpen:"off"},
+    created_at:new Date().toISOString(),
+  };
+}
+
+function bindUI(){
+  document.querySelectorAll(".tabs button").forEach(b => {
+    b.onclick = () => {
+      document.querySelectorAll(".tabs button").forEach(x => x.classList.remove("on"));
+      b.classList.add("on");
+      ["base","ops","json","help"].forEach(t => {
+        $("tab-" + t).style.display = (t === b.dataset.tab) ? "" : "none";
+      });
+      if (b.dataset.tab === "json") syncJsonBox();
+    };
+  });
+
+  $("selBase").onchange = doRender;
+  $("selRef").onchange = loadRef;
+  $("selSubtype").onchange = () => {
+    S.recipe.subtype = $("selSubtype").value;
+    $("subtypeBadge").textContent = {precise:"A 精贴",distort:"B 畸变",stack:"C 堆叠",rewear:"D 换装"}[S.recipe.subtype];
+    doRender();
+  };
+  $("recipeId").onchange = () => { S.recipe.recipe_id = $("recipeId").value; };
+
+  $("btFlipX").onchange = () => {
+    S.recipe.base_transform = S.recipe.base_transform || {};
+    S.recipe.base_transform.flip_x = $("btFlipX").checked;
+    doRender();
+  };
+  $("btRot").oninput = e => { $("btRotN").value = e.target.value; };
+  $("btRot").onchange = e => {
+    S.recipe.base_transform = S.recipe.base_transform || {};
+    S.recipe.base_transform.rotation_deg = +e.target.value;
+    doRender();
+  };
+  $("btRotN").onchange = e => { $("btRot").value = e.target.value; $("btRot").onchange(e); };
+
+  $("selFg").onchange = () => {
+    S.recipe.layers = S.recipe.layers || {};
+    S.recipe.layers.foreground = $("selFg").value || null;
+    doRender();
+  };
+  $("selRz").onchange = () => {
+    S.recipe.layers = S.recipe.layers || {};
+    S.recipe.layers.replace_zone = $("selRz").value || null;
+    doRender();
+  };
+
+  $("btnAddOp").onclick = () => {
+    const k = $("selAddOp").value;
+    const op = JSON.parse(JSON.stringify(OP_DEFS[k].defaults));
+    op.op = k;
+    if (k !== "degrade" && k !== "grade" && k !== "backdrop" && k !== "label"){
+      const a = S.env.assets[0];
+      if (a) op.asset_id = a.id;
+    }
+    if (k === "degrade") S.recipe.degrade = op.params;
+    S.recipe.ops.push(op);
+    S.selectedOp = S.recipe.ops.length - 1;
+    renderOpList();
+    doRender();
+  };
+
+  $("btnSave").onclick = saveRecipe;
+  $("btnSave2").onclick = saveRecipe;
+
+  $("btnReset").onclick = async () => {
+    S.recipe = newRecipe($("selSubtype").value);
+    S.selectedOp = -1;
+    $("btFlipX").checked = false; $("btRot").value = 0; $("btRotN").value = 0;
+    $("selFg").value = ""; $("selRz").value = "";
+    renderOpList();
+    await doRender();
+  };
+
+  $("btnApplyJson").onclick = () => {
+    try {
+      S.recipe = JSON.parse($("jsonBox").value);
+      renderOpList();
+      doRender();
+      flash("JSON 已应用","ok");
+    } catch(e){ flash("JSON 解析失败: " + e.message,"err"); }
+  };
+  $("btnCopyJson").onclick = async () => {
+    await navigator.clipboard.writeText($("jsonBox").value);
+    flash("已复制","ok");
+  };
+  $("btnLoadRef").onclick = async () => {
+    $("selRef").value = $("selBase").value;
+    await loadRef();
+  };
+
+  const pane = $("paneOut");
+  let dragging = false, startX = 0, startY = 0, opStart = null;
+  pane.addEventListener("mousedown", e => {
+    const op = S.recipe.ops[S.selectedOp];
+    if (!op) return;
+    if (!op.center && !op.target_box) return;
+    dragging = true;
+    startX = e.clientX; startY = e.clientY;
+    opStart = JSON.parse(JSON.stringify(op.center || op.target_box));
+    e.preventDefault();
+  });
+  window.addEventListener("mousemove", e => {
+    if (!dragging) return;
+    const op = S.recipe.ops[S.selectedOp];
+    const rect = $("imgOut").getBoundingClientRect();
+    const dx = (e.clientX - startX) / rect.width;
+    const dy = (e.clientY - startY) / rect.height;
+    if (op.center){
+      op.center = [clamp(opStart[0] + dx,0,1), clamp(opStart[1] + dy,0,1)];
+    } else if (op.target_box){
+      op.target_box = [clamp(opStart[0] + dx,0,1), clamp(opStart[1] + dy,0,1), opStart[2], opStart[3]];
+    }
+    renderOpList(true);
+    scheduleRender();
+  });
+  window.addEventListener("mouseup", () => { if (dragging){ dragging = false; doRender(); } });
+}
+
+function clamp(v,lo,hi){ return Math.max(lo, Math.min(hi, v)); }
+
+async function loadRef(){
+  const p = $("selRef").value;
+  if (!p) return;
+  const r = await fetch(`/api/file?path=${encodeURIComponent(p)}&max_side=900`);
+  const d = await r.json();
+  if (d.png) $("imgRef").src = d.png;
+}
+
+function renderOpList(keepOpen){
+  const box = $("opList");
+  if (!S.recipe.ops.length){
+    box.innerHTML = '<div class="empty">还没有操作<br>上面选一个 op 点「+ 添加」</div>';
+    return;
+  }
+  const openSet = new Set();
+  if (keepOpen) box.querySelectorAll(".opcard.open").forEach(c => openSet.add(+c.dataset.i));
+  openSet.add(S.selectedOp);
+
+  box.innerHTML = S.recipe.ops.map((op,i) => {
+    const def = OP_DEFS[op.op] || {fields:[]};
+    const disabled = op.op === "degrade" && !(op.params && op.params.enabled);
+    const cls = ["opcard"];
+    if (openSet.has(i)) cls.push("open");
+    if (disabled) cls.push("disabled");
+    return `<div class="${cls.join(" ")}" data-i="${i}">
+      <div class="ophead">
+        <span class="nm">${op.op}</span>
+        <span class="sum">${summarize(op)}</span>
+        <span class="x" data-del="${i}">✕</span>
+      </div>
+      <div class="opbody">${def.fields.map(f => fieldHTML(op,f,i)).join("")}</div>
+    </div>`;
+  }).join("");
+
+  box.querySelectorAll(".ophead").forEach(h => {
+    h.onclick = e => {
+      if (e.target.dataset.del !== undefined) return;
+      const card = h.parentElement;
+      card.classList.toggle("open");
+      S.selectedOp = +card.dataset.i;
+    };
+  });
+  box.querySelectorAll("[data-del]").forEach(x => {
+    x.onclick = e => {
+      e.stopPropagation();
+      const i = +x.dataset.del;
+      if (S.recipe.ops[i].op === "degrade") S.recipe.degrade = {enabled:false};
+      S.recipe.ops.splice(i,1);
+      S.selectedOp = -1;
+      renderOpList();
+      doRender();
+    };
+  });
+  bindFields();
+}
+
+function summarize(op){
+  if (op.op === "degrade"){
+    const p = op.params || {};
+    return p.enabled ? `降${p.downscale} q${p.jpeg_quality}` : "未启用";
+  }
+  if (op.center) return `${op.center[0].toFixed(2)},${op.center[1].toFixed(2)}` +
+    (op.scale !== undefined ? ` ×${op.scale}` : "");
+  if (op.target_box) return op.target_box.map(v=>v.toFixed(2)).join(",");
+  if (op.text) return op.text.slice(0,12);
+  return op.asset_id || "";
+}
+
+function fieldHTML(op,f,i){
+  const path = f.path || null;
+  const obj = path ? (op[path] = op[path] || {}) : op;
+  let v = obj[f.k];
+  if (v === undefined) v = (f.t === "chk" ? false : (f.min !== undefined ? f.min : ""));
+
+  const attr = (extra="") => `data-i="${i}" data-k="${f.k}" ${path?`data-path="${path}"`:""} ${extra}`;
+
+  if (f.t === "range"){
+    return `<div class="row"><label>${f.label}</label>
+      <input type="range" ${attr()} min="${f.min}" max="${f.max}" step="${f.step}" value="${v}">
+      <input class="num" type="number" ${attr()} min="${f.min}" max="${f.max}" step="${f.step}" value="${v}">
+    </div>`;
+  }
+  if (f.t === "chk"){
+    return `<div class="row chk"><label>${f.label}</label>
+      <input type="checkbox" ${attr()} ${v?"checked":""}></div>`;
+  }
+  if (f.t === "text"){
+    return `<div class="row"><label>${f.label}</label>
+      <input type="text" ${attr()} value="${esc(v)}"></div>`;
+  }
+  if (f.t === "color"){
+    return `<div class="row"><label>${f.label}</label>
+      <input type="color" ${attr()} value="${v||'#FFFFFF'}"></div>`;
+  }
+  if (f.t === "select"){
+    let opts = f.opts;
+    if (f.k === "asset_id") opts = S.env.assets.map(a => a.id);
+    if (f.k === "subject_mask") opts = [""].concat(S.env.masks.map(m => m.path));
+    return `<div class="row"><label>${f.label}</label>
+      <select ${attr()}>${opts.map(o =>
+        `<option value="${esc(o)}" ${o===v?"selected":""}>${esc(o||"（无）")}</option>`
+      ).join("")}</select></div>`;
+  }
+  if (f.t === "point"){
+    const [x,y] = v || [0.5,0.5];
+    return `<div class="row"><label>${f.label}</label>
+      <input class="num" type="number" ${attr('data-idx="0"')} min="0" max="1" step="0.005" value="${x}">
+      <input class="num" type="number" ${attr('data-idx="1"')} min="0" max="1" step="0.005" value="${y}">
+      <span style="font-size:10px;color:var(--dim)">可拖</span></div>`;
+  }
+  if (f.t === "box"){
+    const b = v || [0.35,0.4,0.3,0.18];
+    return `<div class="row" style="flex-wrap:wrap"><label>${f.label}</label>
+      ${["x","y","w","h"].map((n,idx) =>
+        `<input class="num" type="number" ${attr(`data-idx="${idx}"`)} min="0" max="1"
+          step="0.005" value="${b[idx]}" title="${n}">`).join("")}</div>`;
+  }
+  if (f.t === "quad"){
+    const q = v || [];
+    return `<div style="margin-bottom:6px"><span style="font-size:11px;color:var(--dim)">
+      ${f.label}（左上/右上/右下/左下）</span>` +
+      q.map((p,qi) => `<div class="row" style="margin-top:4px">
+        <label style="flex:0 0 40px">#${qi+1}</label>
+        <input class="num" type="number" ${attr(`data-qi="${qi}" data-idx="0"`)} min="0" max="1" step="0.005" value="${p[0]}">
+        <input class="num" type="number" ${attr(`data-qi="${qi}" data-idx="1"`)} min="0" max="1" step="0.005" value="${p[1]}">
+      </div>`).join("") + `</div>`;
+  }
+  return "";
+}
+
+function bindFields(){
+  $("opList").querySelectorAll("[data-k]").forEach(inp => {
+    const i = +inp.dataset.i, k = inp.dataset.k, path = inp.dataset.path;
+    const op = S.recipe.ops[i];
+    const obj = path ? (op[path] = op[path] || {}) : op;
+
+    const apply = (val) => {
+      if (inp.dataset.idx !== undefined){
+        if (inp.dataset.qi !== undefined) obj[k][+inp.dataset.qi][+inp.dataset.idx] = val;
+        else obj[k][+inp.dataset.idx] = val;
+      } else obj[k] = val;
+      const sib = inp.parentElement.querySelectorAll(`[data-k="${k}"]`);
+      sib.forEach(s => { if (s !== inp && s.type !== "checkbox") s.value = val; });
+      scheduleRender();
+    };
+
+    if (inp.type === "checkbox"){
+      inp.onchange = () => {
+        apply(inp.checked);
+        if (op.op === "degrade") S.recipe.degrade = op.params;
+        renderOpList(true);
+      };
+    } else if (inp.type === "range"){
+      inp.oninput = () => apply(+inp.value);
+      inp.onchange = () => doRender();
+    } else if (inp.type === "number"){
+      inp.onchange = () => apply(+inp.value);
+    } else if (inp.tagName === "SELECT"){
+      inp.onchange = () => { apply(inp.value); renderOpList(true); doRender(); };
+    } else {
+      inp.onchange = () => apply(inp.value);
+    }
+  });
+}
+
+let timer = null;
+function scheduleRender(){
+  clearTimeout(timer);
+  timer = setTimeout(doRender, 180);
+}
+
+async function doRender(){
+  if (S.rendering){ S.pending = true; return; }
+  S.rendering = true;
+  $("stHint").textContent = "渲染中…";
+  try {
+    const r = await fetch("/api/render", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({ recipe:S.recipe, base:$("selBase").value||null, max_side:900 }),
+    });
+    const d = await r.json();
+    if (!r.ok){
+      flash(d.detail || "渲染失败","err");
+      $("stHint").textContent = "";
+      return;
+    }
+    $("imgOut").src = d.png;
+    $("stMs").textContent = d.ms + " ms";
+    $("stSize").textContent = d.w + "×" + d.h;
+    $("stValid").textContent = d.valid ? "合法" : `有问题(${d.errors.length})`;
+    $("stValid").style.color = d.valid ? "var(--ok)" : "var(--err)";
+    $("stHint").textContent = "";
+    if (!d.valid && d.errors.length) flash(d.errors[0],"warn");
+    syncJsonBox();
+  } catch(e){
+    flash("网络错误: " + e.message,"err");
+  } finally {
+    S.rendering = false;
+    if (S.pending){ S.pending = false; doRender(); }
+  }
+}
+
+function syncJsonBox(){
+  if ($("tab-json").style.display === "none") return;
+  $("jsonBox").value = JSON.stringify(S.recipe, null, 2);
+}
+
+async function saveRecipe(){
+  const name = $("saveName").value.trim() || "baseline.json";
+  const r = await fetch("/api/save", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({ recipe:S.recipe, filename:name }),
+  });
+  const d = await r.json();
+  if (!r.ok){ flash(d.detail || "保存失败","err"); return; }
+  flash("已保存 → " + d.path,"ok");
+}
+
+function flash(msg,kind="ok"){
+  const b = $("msgBox");
+  b.textContent = msg;
+  b.className = "msg show " + kind;
+  clearTimeout(flash._t);
+  flash._t = setTimeout(() => { b.className = "msg"; }, 4000);
+}
+
+function esc(s){
+  return String(s ?? "").replace(/[&<>"']/g, c =>
+    ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+init();
+</script>
+</body>
+</html>

@@ -241,7 +241,14 @@ def validate_asset(data: dict, *, do_clamp: bool = True) -> ValidationResult:
     return res
 
 
-def validate_recipe(data: dict, *, do_clamp: bool = True, check_order: bool = True) -> ValidationResult:
+def validate_recipe(data: dict, *, do_clamp: bool = True, check_order: bool = True,
+                    draft: bool = False) -> ValidationResult:
+    """校验配方。
+
+    Args:
+        draft: True 时允许空 ops 与不完整的 degrade —— 校准器/编辑中的中间状态。
+               成品保存时必须用 draft=False。
+    """
     res = ValidationResult(ok=True)
     d = data
     if do_clamp:
@@ -249,11 +256,20 @@ def validate_recipe(data: dict, *, do_clamp: bool = True, check_order: bool = Tr
         res.warnings.extend(warns)
 
     errs = sorted(_validator("recipe").iter_errors(d), key=lambda e: e.path)
+
+    if draft:
+        # 草稿态：放宽两条会阻碍编辑过程的约束
+        errs = [e for e in errs if not (
+            "should be non-empty" in e.message and list(e.path)[:1] == ["ops"]
+            or (list(e.path)[:2] == ["degrade", "enabled"]
+                and "was expected" in e.message)
+        )]
+
     if errs:
         res.ok = False
         res.errors.extend(f"{'/'.join(map(str, e.path)) or '<root>'}: {e.message}" for e in errs)
 
-    if check_order and isinstance(d.get("ops"), list):
+    if check_order and isinstance(d.get("ops"), list) and d["ops"]:
         order_errs = check_op_order(d["ops"])
         if order_errs:
             res.ok = False
