@@ -125,6 +125,13 @@ def do_render(req: RenderReq) -> JSONResponse:
     # 渲染用草稿模式：编辑中的配方允许空 ops / degrade 未开
     v = validate_recipe(req.recipe, draft=True)
 
+    # 顺带算指标（M2 验收用）
+    from core.metrics import highfreq_energy, laplacian_variance
+    metrics = {
+        "hf": round(highfreq_energy(r.image), 5),
+        "lap": round(laplacian_variance(r.image), 1),
+    }
+
     return JSONResponse({
         "png": _b64(r.image),
         "w": r.image.width,
@@ -134,6 +141,7 @@ def do_render(req: RenderReq) -> JSONResponse:
         "warnings": r.warnings,
         "valid": v.ok,
         "errors": v.errors[:6],
+        "metrics": metrics,
     })
 
 

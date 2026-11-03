@@ -330,55 +330,110 @@ def op_face_fit(canvas: Image.Image, op: dict, ctx: Ctx) -> Image.Image:
 
 
 def op_feature_warp(canvas: Image.Image, op: dict, ctx: Ctx) -> Image.Image:
-    """五官形变移植。
+    """五官形变移植（TPS 版，M2）。
 
-    用仿射（缩放+斜切+旋转）实现，再按 target_box 定位。
-    TPS 控制点留给 M2 —— 这里先保证「拉伸 + 斜挑」两个最关键的喜剧参数可用。
+    相比 M1 的仿射近似，这里能做出真正的局部畸变：
+      · stretch_x / stretch_y   —— 整体拉伸（保留，最直观）
+      · skew_deg               —— 整体斜切
+      · corner_offsets         —— **逐角独立偏移**，这是「歪嘴」「斜眼」的关键
+      · bulge                  —— 局部鼓胀/凹陷，做「眼球凸出」
+      · local                  —— TPS 局部性，0=纯仿射，1=完整弯曲
+
+    实现流程：
+      1. 按 target_box 算出目标四角
+      2. 应用 stretch / skew 到四角
+      3. 应用 corner_offsets（像素级微调）
+      4. TPS 变形到画布
+      5. 可选 bulge 位移场叠加
+      6. 带皮圈、色调、合成
     """
+    import cv2
+
+    from core.warp import bulge_field, warp_box_tps
+
     src = ctx.asset(op["asset_id"])
     src = _crop(src, op.get("crop_box"))
     src = _flip(src, bool(op.get("flip_x", False)), bool(op.get("flip_y", False)))
 
     W, H = canvas.size
     bx, by, bw, bh = (float(v) for v in op["target_box"])
-    box_w = max(1, int(round(bw * W)))
-    box_h = max(1, int(round(bh * H)))
 
     sx = float(op.get("stretch_x", 1.0))
     sy = float(op.get("stretch_y", 1.0))
 
-    # 先缩放到目标框，再乘拉伸系数
-    fit = min(box_w / src.width, box_h / src.height)
-    nw = max(1, int(round(src.width * fit * sx)))
-    nh = max(1, int(round(src.height * fit * sy)))
-    piece = src.resize((nw, nh), Image.LANCZOS)
+    # 目标框中心与半宽高（归一化 -> 像素）
+    cx = (bx + bw / 2) * W
+    cy = (by + bh / 2) * H
+    half_w = bw * W / 2 * sx
+    half_h = bh * H / 2 * sy
 
-    # 斜切（skew）：用仿射实现
+    # 斜切：绕中心水平剪切
     skew = float(op.get("skew_deg", 0))
-    if skew:
-        shear = math.tan(math.radians(skew))
-        # 水平方向斜切：x' = x + shear * (y - h/2)
-        coeffs = (1, shear, -shear * nh / 2, 0, 1, 0)
-        pad = int(abs(shear) * nh)
-        wide = Image.new("RGBA", (nw + 2 * pad, nh), (0, 0, 0, 0))
-        wide.paste(piece, (pad, 0))
-        piece = wide.transform(wide.size, Image.AFFINE, coeffs, resample=Image.BICUBIC)
-        piece = piece.crop(piece.getbbox() or (0, 0, wide.width, wide.height))
+    shear = math.tan(math.radians(skew)) if skew else 0.0
 
+    def corner(lx: float, ly: float) -> np.ndarray:
+        """局部坐标 (-1~1) -> 画布像素坐标。"""
+        x = lx * half_w
+        y = ly * half_h
+        x = x + shear * y          # 斜切
+        return np.array([cx + x, cy + y], dtype=np.float64)
+
+    quad = np.array([
+        corner(-1, -1),   # 左上
+        corner(+1, -1),   # 右上
+        corner(+1, +1),   # 右下
+        corner(-1, +1),   # 左下
+    ])
+
+    # 逐角偏移（归一化画布比例 -> 像素）
+    co = op.get("corner_offsets")
+    if co:
+        arr = np.asarray(co, dtype=np.float64).reshape(4, 2)
+        quad = quad + arr * np.array([W, H], dtype=np.float64)
+
+    piece = np.asarray(src.convert("RGBA"))
+
+    out_arr = warp_box_tps(
+        piece, quad, (W, H),
+        strength=float(op.get("strength", 1.0)),
+        local=float(op.get("local", 1.0)),
+        lam=float(op.get("lam", 0.0)),
+    )
+
+    # 局部鼓胀叠加
+    bulge = op.get("bulge")
+    if bulge:
+        bcx = float(bulge.get("center", [0.5, 0.5])[0]) * W
+        bcy = float(bulge.get("center", [0.5, 0.5])[1]) * H
+        rad = float(bulge.get("radius", 0.1)) * max(W, H)
+        amt = float(bulge.get("amount", 0.0)) * max(W, H)
+        if abs(amt) > 0.01 and rad > 0.5:
+            dx, dy = bulge_field((W, H), (bcx, bcy), rad, amt)
+            ys, xs = np.mgrid[0:H, 0:W].astype(np.float32)
+            mapx = (xs + dx).astype(np.float32)
+            mapy = (ys + dy).astype(np.float32)
+            for c in range(out_arr.shape[2]):
+                out_arr[:, :, c] = cv2.remap(
+                    out_arr[:, :, c], mapx, mapy,
+                    interpolation=cv2.INTER_LINEAR,
+                    borderMode=cv2.BORDER_CONSTANT, borderValue=0)
+
+    piece_img = Image.fromarray(out_arr, "RGBA")
+
+    # 色调
     hs = float(op.get("hue_shift", 0))
     if hs:
-        piece = _adjust_rgb(piece, hue_shift=hs)
+        piece_img = _adjust_rgb(piece_img, hue_shift=hs)
 
     # keep_skin_rim：扩张 alpha 边缘，制造一圈「带皮」的色块边界
     rim = float(op.get("keep_skin_rim", 0))
     if rim > 0:
-        r = max(1, int(round(min(piece.size) * rim * 0.5)))
-        a = piece.getchannel("A").filter(ImageFilter.MaxFilter(min(9, r * 2 + 1)))
-        piece.putalpha(a)
+        r = max(1, int(round(min(piece_img.size) * rim * 0.5)))
+        a = piece_img.getchannel("A").filter(ImageFilter.MaxFilter(min(9, r * 2 + 1)))
+        piece_img.putalpha(a)
 
-    cx = (bx + bw / 2) * W
-    cy = (by + bh / 2) * H
-    return _paste(canvas, piece, (cx, cy), float(op.get("opacity", 1.0)))
+    return _paste(canvas, piece_img, (W / 2, H / 2),
+                  float(op.get("opacity", 1.0)))
 
 
 def op_texture_wrap(canvas: Image.Image, op: dict, ctx: Ctx) -> Image.Image:

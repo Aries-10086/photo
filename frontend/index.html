@@ -140,6 +140,8 @@ legend{font-size:11px; color:var(--dim); padding:0 5px}
       <span><span class="k">尺寸</span> <span class="v" id="stSize">—</span></span>
       <span><span class="k">配方</span> <span class="v" id="stValid">—</span></span>
       <span><span class="k">素材</span> <span class="v" id="stAssets">—</span></span>
+      <span><span class="k">高频</span> <span class="v" id="stHf">—</span></span>
+      <span><span class="k">清晰</span> <span class="v" id="stLap">—</span></span>
       <span style="flex:1"></span>
       <span id="stHint" style="color:#5f6577"></span>
     </div>
@@ -272,15 +274,20 @@ const OP_DEFS = {
       {k:"flip_x",t:"chk",label:"水平翻转"},
     ]},
   feature_warp:{
-    label:"feature_warp 五官形变",
-    defaults:{ target_box:[0.35,0.4,0.3,0.18], stretch_x:1.0, stretch_y:1.0, skew_deg:0, keep_skin_rim:0.15, opacity:1, hue_shift:0 },
+    label:"feature_warp 五官形变 (TPS)",
+    defaults:{ target_box:[0.35,0.4,0.3,0.18], stretch_x:1.0, stretch_y:1.0, skew_deg:0,
+               keep_skin_rim:0.15, strength:1.0, local:1.0, lam:0, opacity:1, hue_shift:0 },
     fields:[
       {k:"asset_id",t:"select",label:"素材"},
       {k:"target_box",t:"box",label:"孔位"},
       {k:"stretch_x",t:"range",label:"横拉伸",min:0.2,max:4,step:0.05},
       {k:"stretch_y",t:"range",label:"纵拉伸",min:0.2,max:4,step:0.05},
       {k:"skew_deg",t:"range",label:"斜挑",min:-40,max:40,step:1},
+      {k:"strength",t:"range",label:"形变强度",min:0,max:1,step:0.05},
+      {k:"local",t:"range",label:"局部性",min:0,max:1,step:0.05},
+      {k:"lam",t:"range",label:"平滑",min:0,max:0.5,step:0.01},
       {k:"keep_skin_rim",t:"range",label:"带皮圈",min:0,max:0.8,step:0.01},
+      {k:"bulge_amount",t:"range",label:"鼓胀",min:-0.3,max:0.3,step:0.01},
       {k:"hue_shift",t:"range",label:"色相",min:-180,max:180,step:1},
       {k:"opacity",t:"range",label:"不透明度",min:0,max:1,step:0.01},
       {k:"flip_x",t:"chk",label:"水平翻转"},
@@ -651,7 +658,15 @@ function bindFields(){
     const obj = path ? (op[path] = op[path] || {}) : op;
 
     const apply = (val) => {
-      if (inp.dataset.idx !== undefined){
+      // 特殊字段：bulge_amount 映射到嵌套的 bulge 对象
+      if (k === "bulge_amount"){
+        if (Math.abs(val) < 0.005){
+          delete op.bulge;
+        } else {
+          op.bulge = op.bulge || { center:[0.5,0.5], radius:0.1, amount:0 };
+          op.bulge.amount = val;
+        }
+      } else if (inp.dataset.idx !== undefined){
         if (inp.dataset.qi !== undefined) obj[k][+inp.dataset.qi][+inp.dataset.idx] = val;
         else obj[k][+inp.dataset.idx] = val;
       } else obj[k] = val;
@@ -706,6 +721,12 @@ async function doRender(){
     $("stSize").textContent = d.w + "×" + d.h;
     $("stValid").textContent = d.valid ? "合法" : `有问题(${d.errors.length})`;
     $("stValid").style.color = d.valid ? "var(--ok)" : "var(--err)";
+    if (d.metrics){
+      $("stHf").textContent = d.metrics.hf;
+      const lap = d.metrics.lap;
+      $("stLap").textContent = lap > 100 ? `${lap} 清晰` : (lap > 50 ? `${lap} 略糊` : `${lap} 严重糊`);
+      $("stLap").style.color = lap > 100 ? "var(--ok)" : (lap > 50 ? "var(--warn)" : "var(--err)");
+    }
     $("stHint").textContent = "";
     if (!d.valid && d.errors.length) flash(d.errors[0],"warn");
     syncJsonBox();

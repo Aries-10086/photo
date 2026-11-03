@@ -238,6 +238,72 @@
               "default": 0.15,
               "description": "保留周围一圈皮肤的比例，制造色块边界"
             },
+            "strength": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 1.0,
+              "description": "形变强度。0 = 仿射近似，1 = 完整 TPS 弯曲"
+            },
+            "local": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 1.0,
+              "description": "TPS 局部性。0 = 完全仿射（边界平直），1 = 完整局部畸变"
+            },
+            "lam": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.0,
+              "description": "TPS 平滑正则。>0 抑制过冲，适合素材分辨率低时"
+            },
+            "corner_offsets": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "number",
+                  "minimum": -1,
+                  "maximum": 1
+                },
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "minItems": 4,
+              "maxItems": 4,
+              "description": "逐角独立偏移（归一化画布比例），顺序 左上/右上/右下/左下。做歪嘴、斜眼的关键"
+            },
+            "bulge": {
+              "type": ["object", "null"],
+              "additionalProperties": false,
+              "default": null,
+              "description": "局部鼓胀/凹陷。做「眼球凸出」",
+              "properties": {
+                "center": {
+                  "type": "array",
+                  "items": {"$ref": "#/definitions/unit"},
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "default": [0.5, 0.5]
+                },
+                "radius": {
+                  "type": "number",
+                  "minimum": 0.01,
+                  "maximum": 1,
+                  "default": 0.1,
+                  "description": "影响半径，相对画布长边"
+                },
+                "amount": {
+                  "type": "number",
+                  "minimum": -0.5,
+                  "maximum": 0.5,
+                  "default": 0.0,
+                  "description": "位移量，相对画布长边。正=鼓出，负=凹陷"
+                }
+              }
+            },
             "hue_shift": {
               "type": "number",
               "minimum": -180,
