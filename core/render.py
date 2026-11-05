@@ -11,6 +11,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import numpy as np
 from PIL import Image
 
 from core import imageio
@@ -133,6 +134,29 @@ def render(
         base_long=max(base.size),
     )
 
+    # ---------------------------------------------------------- A 类前景遮挡
+    # 关键机制：先把前景遮挡层（头发/手）从基底中抠出来存起来，
+    # 等所有内容 op 执行完后，再把它贴回最上层。
+    # 这样人脸被贴入后，头发会自然压住它的边缘 —— 接缝消失，零成本。
+    front_layer: Image.Image | None = None
+    layers_cfg = rec.get("layers") or {}
+    if layers_cfg.get("foreground"):
+        try:
+            from core.layers import _mul_alpha, _from_np, _to_np, load_mask
+            fm = load_mask(layers_cfg["foreground"], size=base.size)
+            if fm.max() > 8:
+                # 前景层 = 基底 alpha ∩ 掩码
+                fa = _to_np(base)
+                fa[:, :, 3] = _mul_alpha(fa[:, :, 3], fm)
+                front_layer = _from_np(fa)
+                # 从基底中挖掉前景，避免它在新图里露出两份
+                inv = (255 - fm).astype(np.uint8)
+                ba = _to_np(base)
+                ba[:, :, 3] = _mul_alpha(ba[:, :, 3], inv)
+                base = _from_np(ba)
+        except FileNotFoundError as e:
+            warnings.append(f"前景掩码读取失败，忽略分层: {e}")
+
     steps: list[StepResult] = []
     canvas = base
     t_all = time.perf_counter()
@@ -147,6 +171,17 @@ def render(
             p = save_steps_dir / f"step{i:02d}_{op.get('op','?')}.png"
             imageio.write(canvas, p)
         steps.append(StepResult(i, op.get("op", "?"), ms, p))
+
+    # 前景遮挡层盖在最上
+    if front_layer is not None:
+        t0 = time.perf_counter()
+        canvas = Image.alpha_composite(canvas, front_layer)
+        ms = (time.perf_counter() - t0) * 1000
+        p = None
+        if save_steps_dir is not None:
+            p = save_steps_dir / f"step{len(steps):02d}_front_restore.png"
+            imageio.write(canvas, p)
+        steps.append(StepResult(len(steps), "front_restore", ms, p))
 
     total = (time.perf_counter() - t_all) * 1000
     return RenderResult(canvas, steps, total, warnings)
