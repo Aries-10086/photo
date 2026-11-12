@@ -15,6 +15,7 @@ import io
 import json
 import time
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
@@ -201,3 +202,209 @@ def _b64(img: Image.Image) -> str:
 @app.get("/api/health")
 def health() -> dict:
     return {"ok": True, "root": str(ROOT)}
+
+
+# ---------------------------------------------------------------- 记忆层 M4
+
+
+class EventReq(BaseModel):
+    kind: str
+    recipe: dict | None = None
+    payload: dict = {}
+    reason: str = ""
+
+
+class LearnReq(BaseModel):
+    dry_run: bool = False
+    kinds: list[str] | None = None
+
+
+class MemEditReq(BaseModel):
+    memory_id: str
+    field: str
+    value: Any
+
+
+class MemIdReq(BaseModel):
+    memory_id: str
+
+
+@app.get("/api/memory")
+def get_memory(status: str | None = "active") -> dict:
+    """记忆总览 + 全量条目。"""
+    from core import memory
+    from core import recall as R
+
+    st = memory.store()
+    return {
+        "summary": R.summary(st),
+        "memories": st.all(status=status),
+        "path": str(st.path.relative_to(ROOT)).replace("\\", "/"),
+    }
+
+
+@app.post("/api/memory/event")
+def post_event(req: EventReq) -> dict:
+    """记录一条行为事件。"""
+    from core import events as EV
+
+    lg = EV.log()
+    try:
+        if req.kind == "save" and req.recipe:
+            e = EV.record_save(req.recipe, log_=lg)
+        elif req.kind == "regenerate" and req.recipe:
+            e = EV.record_regenerate(req.recipe, reason=req.reason, log_=lg)
+        elif req.kind == "param_change" and req.recipe:
+            p = req.payload
+            e = EV.record_param_change(
+                req.recipe, log_=lg,
+                op_index=int(p.get("op_index", 0)),
+                op=str(p.get("op", "")),
+                path=str(p.get("path", "")),
+                old=p.get("old"), new=p.get("new"))
+        elif req.kind == "mem_delete":
+            p = req.payload
+            e = EV.record_mem_delete(
+                str(p.get("memory_id", "")), str(p.get("memory_type", "")),
+                str(p.get("memory_key", "")), log_=lg)
+        else:
+            e = lg.append(req.kind, payload=req.payload,
+                          recipe_id=(req.recipe or {}).get("recipe_id"),
+                          base_id=(req.recipe or {}).get("base_id"),
+                          subtype=(req.recipe or {}).get("subtype"))
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"ok": True, "event": e.as_dict()}
+
+
+@app.post("/api/memory/learn")
+def post_learn(req: LearnReq) -> dict:
+    """从事件流蒸馏。"""
+    from core import distill as D
+
+    rep = D.learn(dry_run=req.dry_run, kinds=req.kinds)
+    return rep
+
+
+@app.get("/api/memory/suggest")
+def get_suggest(recipe_path: str | None = None) -> dict:
+    """给建议。可传一份配方路径，也可不传（只给全局偏好）。"""
+    from core import recall as R
+
+    recipe = None
+    if recipe_path:
+        try:
+            recipe = store.read_recipe(recipe_path)
+        except Exception:  # noqa: BLE001
+            recipe = None
+    sug = R.suggest(recipe)
+    return sug.as_dict()
+
+
+@app.post("/api/memory/edit")
+def post_mem_edit(req: MemEditReq) -> dict:
+    """手工改记忆（会标记 hand_edited）。"""
+    from core import events as EV
+    from core import memory
+
+    st = memory.store()
+    old = (st.get(req.memory_id) or {}).get(req.field)
+    m = st.edit(req.memory_id, req.field, req.value)
+    if m is None:
+        raise HTTPException(404, f"记忆不存在: {req.memory_id}")
+    st.save()
+    EV.record_mem_edit(req.memory_id, req.field, old, req.value,
+                       log_=EV.log())
+    return {"ok": True, "memory": m}
+
+
+@app.post("/api/memory/delete")
+def post_mem_delete(req: MemIdReq) -> dict:
+    """删除记忆（软删 + 记负证据事件）。"""
+    from core import events as EV
+    from core import memory
+
+    st = memory.store()
+    m = st.get(req.memory_id)
+    if m is None:
+        raise HTTPException(404, f"记忆不存在: {req.memory_id}")
+    EV.record_mem_delete(m["id"], m["type"], m["key"], log_=EV.log())
+    st.delete(req.memory_id)
+    st.save()
+    return {"ok": True}
+
+
+@app.post("/api/memory/restore")
+def post_mem_restore(req: MemIdReq) -> dict:
+    from core import memory
+
+    st = memory.store()
+    ok = st.restore(req.memory_id)
+    if not ok:
+        raise HTTPException(404, f"记忆不存在: {req.memory_id}")
+    st.save()
+    return {"ok": True}
+
+
+@app.post("/api/memory/prune")
+def post_prune() -> dict:
+    """执行淘汰：低置信归档 + 时间衰减。"""
+    from core import memory
+
+    st = memory.store()
+    rep = st.prune()
+    st.save()
+    return rep
+
+
+@app.get("/api/memory/events")
+def get_events(limit: int = 50, kind: str | None = None) -> dict:
+    from core import events as EV
+
+    lg = EV.log()
+    evs = lg.all()
+    if kind:
+        evs = [e for e in evs if e.get("kind") == kind]
+    evs = evs[-limit:][::-1]
+    return {
+        "total": lg.count(),
+        "by_kind": {k: lg.count(k) for k in EV.KINDS},
+        "events": evs,
+    }
+
+
+@app.post("/api/memory/compact")
+def post_compact(keep_days: int = 365) -> dict:
+    from core import events as EV
+
+    return EV.log().compact(keep_days=keep_days)
+
+
+@app.post("/api/memory/portrait")
+def post_portrait() -> dict:
+    """生成口味画像卡片。"""
+    from core import portrait
+
+    try:
+        p = portrait.save()
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(500, f"画像生成失败: {e}") from e
+    return {"ok": True, "path": str(p.relative_to(ROOT)).replace("\\", "/"),
+            "name": p.name}
+
+
+@app.get("/api/memory/portrait.png")
+def get_portrait() -> JSONResponse:
+    """直接返回画像图（base64），免存盘预览。"""
+    from core import portrait
+
+    img = portrait.render()
+    return JSONResponse({"png": _b64(img.convert("RGBA"))})
+
+
+@app.get("/api/memory/export")
+def get_export() -> dict:
+    """导出口味包。"""
+    from core import portrait
+
+    return portrait.export_pack()

@@ -1,0 +1,315 @@
+_note:
+- 这是牢图棒的记忆文件。可以直接手改。
+- 改动会被视为人工修正（hand_edited=true），自动流程不再覆盖。
+- confidence < 0.3 的条目会被归档，不参与生成。
+- '最后更新: 2026-11-13T06:56:33+08:00'
+stats:
+  total: 10
+  active: 10
+  archived: 0
+  by_type:
+    combo: 1
+    subtype_pref: 1
+    hand: 5
+    caption: 1
+    base: 1
+    asset: 1
+  avg_confidence: 0.823
+memories:
+- id: mem_combo_8d22bda2
+  type: combo
+  key: asset:darlie_mouth × base:base_sands × slot:feature
+  value:
+    base_id: base_sands
+    asset_ids:
+    - darlie_mouth
+    slot: feature
+    subtype: distort
+    sample_recipe_id: r_demo_01
+  confidence: 0.75
+  evidence_count: 6
+  positive_count: 5
+  negative_count: 1
+  conditions:
+  - default
+  status: active
+  weight: 1.0
+  source_events:
+  - evt_cedd5b3acfea
+  hand_edited: false
+  created_at: '2026-11-13T06:53:34+08:00'
+  last_confirmed: '2026-11-13T06:56:33+08:00'
+- id: mem_subtype_pref_c35afa26
+  type: subtype_pref
+  key: subtype_pref:distort
+  value:
+    subtype: distort
+    ratio: 0.857
+    count: 6
+  confidence: 0.7777777777777778
+  evidence_count: 7
+  positive_count: 6
+  negative_count: 1
+  conditions:
+  - default
+  status: active
+  weight: 1.0
+  source_events:
+  - evt_cedd5b3acfea
+  hand_edited: false
+  created_at: '2026-11-13T06:53:34+08:00'
+  last_confirmed: '2026-11-13T06:56:33+08:00'
+  variants:
+  - value:
+      subtype: distort
+      ratio: 0.833
+      count: 5
+    condition: default
+    at: '2026-11-13T06:56:33+08:00'
+    superseded: true
+- id: mem_hand_429c2a8e
+  type: hand
+  key: hand:degrade.downscale
+  value:
+    op: degrade
+    param_path: downscale
+    value: '0.7'
+    count: 6
+    changes: 0
+  confidence: 0.875
+  evidence_count: 6
+  positive_count: 6
+  negative_count: 0
+  conditions:
+  - default
+  status: active
+  weight: 1.0
+  source_events:
+  - evt_cedd5b3acfea
+  hand_edited: false
+  created_at: '2026-11-13T06:53:34+08:00'
+  last_confirmed: '2026-11-13T06:56:33+08:00'
+- id: mem_hand_5ec8d418
+  type: hand
+  key: hand:degrade.noise
+  value:
+    op: degrade
+    param_path: noise
+    value: '0.02'
+    count: 6
+    changes: 0
+  confidence: 0.875
+  evidence_count: 6
+  positive_count: 6
+  negative_count: 0
+  conditions:
+  - default
+  status: active
+  weight: 1.0
+  source_events:
+  - evt_cedd5b3acfea
+  hand_edited: false
+  created_at: '2026-11-13T06:53:34+08:00'
+  last_confirmed: '2026-11-13T06:56:33+08:00'
+- id: mem_hand_ad13a58f
+  type: hand
+  key: hand:degrade.oversharpen
+  value:
+    op: degrade
+    param_path: oversharpen
+    value: '''weak'''
+    count: 6
+    changes: 0
+  confidence: 0.875
+  evidence_count: 6
+  positive_count: 6
+  negative_count: 0
+  conditions:
+  - default
+  status: active
+  weight: 1.0
+  source_events:
+  - evt_cedd5b3acfea
+  hand_edited: false
+  created_at: '2026-11-13T06:53:34+08:00'
+  last_confirmed: '2026-11-13T06:56:33+08:00'
+- id: mem_hand_dae951e1
+  type: hand
+  key: hand:degrade.jpeg_quality
+  value:
+    op: degrade
+    param_path: jpeg_quality
+    value: '35'
+    count: 2
+    changes: 1
+  confidence: 0.8
+  evidence_count: 3
+  positive_count: 3
+  negative_count: 0
+  conditions:
+  - default
+  status: active
+  weight: 1.0
+  source_events:
+  - evt_cedd5b3acfea
+  - evt_b4e30d94ddc3
+  hand_edited: false
+  created_at: '2026-11-13T06:53:34+08:00'
+  last_confirmed: '2026-11-13T06:56:33+08:00'
+  variants:
+  - value:
+      op: degrade
+      param_path: jpeg_quality
+      value: '95'
+      count: 4
+      changes: 0
+    condition: default
+    at: '2026-11-13T06:53:34+08:00'
+    superseded: true
+  - value:
+      op: degrade
+      param_path: jpeg_quality
+      value: '35'
+      count: 2
+      changes: 1
+    condition: default
+    at: '2026-11-13T06:56:33+08:00'
+    superseded: true
+- id: mem_hand_3700fd9b
+  type: hand
+  key: hand:feature_warp.stretch_x
+  value:
+    op: feature_warp
+    param_path: stretch_x
+    value: '1.2'
+    count: 1
+    changes: 0
+  confidence: 0.6666666666666666
+  evidence_count: 1
+  positive_count: 1
+  negative_count: 0
+  conditions:
+  - default
+  status: active
+  weight: 1.0
+  source_events:
+  - evt_255c7c93a013
+  - evt_128caa2df596
+  - evt_89b6ee793c20
+  hand_edited: false
+  created_at: '2026-11-13T06:53:34+08:00'
+  last_confirmed: '2026-11-13T06:56:33+08:00'
+  variants:
+  - value:
+      op: feature_warp
+      param_path: stretch_x
+      value: '2.2'
+      count: 5
+      changes: 1
+    condition: default
+    at: '2026-11-13T06:53:34+08:00'
+    superseded: true
+  - value:
+      op: feature_warp
+      param_path: stretch_x
+      value: '1.0'
+      count: 1
+      changes: 0
+    condition: default
+    at: '2026-11-13T06:56:33+08:00'
+    superseded: true
+- id: mem_caption_b52691a4
+  type: caption
+  key: caption:habit
+  value:
+    avg_len: 3.0
+    max_len: 3
+    position: bottom_right
+    samples:
+    - 牢肘子
+    - 牢肘子
+    - 牢肘子
+    - 牢肘子
+    - 牢肘子
+    - 牢肘子
+    count: 6
+  confidence: 0.875
+  evidence_count: 6
+  positive_count: 6
+  negative_count: 0
+  conditions:
+  - default
+  status: active
+  weight: 1.0
+  source_events:
+  - evt_cedd5b3acfea
+  hand_edited: false
+  created_at: '2026-11-13T06:53:34+08:00'
+  last_confirmed: '2026-11-13T06:56:33+08:00'
+  variants:
+  - value:
+      avg_len: 3.0
+      max_len: 3
+      position: bottom_right
+      samples:
+      - 牢肘子
+      - 牢肘子
+      - 牢肘子
+      - 牢肘子
+      - 牢肘子
+      count: 5
+    condition: default
+    at: '2026-11-13T06:56:33+08:00'
+    superseded: true
+- id: mem_base_d5056733
+  type: base
+  key: base:base_sands
+  value:
+    base_id: base_sands
+    use_count: 5
+  confidence: 0.8571428571428571
+  evidence_count: 5
+  positive_count: 5
+  negative_count: 0
+  conditions:
+  - default
+  status: active
+  weight: 1.0
+  source_events:
+  - evt_cedd5b3acfea
+  hand_edited: false
+  created_at: '2026-11-13T06:53:34+08:00'
+  last_confirmed: '2026-11-13T06:56:33+08:00'
+  variants:
+  - value:
+      base_id: base_sands
+      use_count: 4
+    condition: default
+    at: '2026-11-13T06:56:33+08:00'
+    superseded: true
+- id: mem_asset_c35ece23
+  type: asset
+  key: asset:darlie_mouth
+  value:
+    asset_id: darlie_mouth
+    usable_count: 6
+  confidence: 0.875
+  evidence_count: 6
+  positive_count: 6
+  negative_count: 0
+  conditions:
+  - default
+  status: active
+  weight: 1.0
+  source_events:
+  - evt_cedd5b3acfea
+  hand_edited: false
+  created_at: '2026-11-13T06:53:34+08:00'
+  last_confirmed: '2026-11-13T06:56:33+08:00'
+  variants:
+  - value:
+      asset_id: darlie_mouth
+      usable_count: 5
+    condition: default
+    at: '2026-11-13T06:56:33+08:00'
+    superseded: true

@@ -104,6 +104,69 @@ legend{font-size:11px; color:var(--dim); padding:0 5px}
 .msg.ok{background:#1e382a; color:#8fe0aa; border:1px solid #2a5138}
 .msg.warn{background:#3a3220; color:#e8c877; border:1px solid #554624}
 .msg.err{background:#3a2323; color:#e8998f; border:1px solid #552e2e}
+
+/* ---------- 记忆面板 ---------- */
+.memStat{
+  display:grid; grid-template-columns:repeat(2,1fr); gap:6px; margin-bottom:10px;
+}
+.memStat div{
+  background:var(--panel2); border:1px solid var(--line); border-radius:6px;
+  padding:7px 9px;
+}
+.memStat .n{font-size:17px; font-weight:500; color:var(--accent); line-height:1.2}
+.memStat .t{font-size:10.5px; color:var(--dim); margin-top:1px}
+
+.memCard{
+  border:1px solid var(--line); border-radius:var(--radius); margin-bottom:8px;
+  background:var(--panel2); overflow:hidden;
+}
+.memHead{
+  display:flex; align-items:center; gap:7px; padding:6px 9px; cursor:pointer;
+  background:#262a35; font-size:11.5px;
+}
+.memHead .ty{
+  font-size:9.5px; padding:1px 5px; border-radius:3px; flex-shrink:0;
+  background:#2f3a4d; color:#93b8e8;
+}
+.memHead .ty.combo{background:#3a2f4d; color:#c0a0e8}
+.memHead .ty.hand{background:#2f4d3a; color:#9ce8b8}
+.memHead .ty.caption{background:#4d3f2f; color:#e8c89c}
+.memHead .ty.subtype_pref{background:#4d2f3a; color:#e8a0b8}
+.memHead .ky{
+  flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  font-family:Consolas,monospace; font-size:10.5px; color:#c8cddb;
+}
+.memHead .cf{
+  font-size:10px; font-variant-numeric:tabular-nums; flex-shrink:0;
+}
+.memBody{padding:8px 10px; display:none; font-size:11px}
+.memCard.open .memBody{display:block}
+.memRow{
+  display:flex; gap:7px; margin-bottom:4px; align-items:baseline;
+}
+.memRow .k{flex:0 0 74px; color:var(--dim); font-size:10.5px}
+.memRow .v{flex:1; color:var(--text); font-family:Consolas,monospace; font-size:10.5px;
+  word-break:break-all}
+.memRow .v input{
+  width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text);
+  border-radius:3px; padding:2px 5px; font:inherit;
+}
+.memActs{display:flex; gap:5px; margin-top:7px}
+.memActs button{padding:3px 9px; font-size:10.5px; border-radius:4px}
+.memActs .del{color:#e8998f}
+.memActs .del:hover{background:#33262a; border-color:#553a3a}
+.bar{
+  height:3px; background:#2a2e3a; border-radius:2px; overflow:hidden; margin-top:3px;
+}
+.bar i{display:block; height:100%; background:var(--ok)}
+.evRow{
+  font-size:10.5px; padding:4px 0; border-bottom:1px solid #252935;
+  display:flex; gap:7px; align-items:baseline;
+}
+.evRow .kd{flex:0 0 74px; color:var(--accent); font-family:Consolas,monospace}
+.evRow .ts{flex:0 0 44px; color:#5f6577; font-size:9.5px}
+.evRow .pl{flex:1; color:var(--dim); overflow:hidden; text-overflow:ellipsis;
+  white-space:nowrap}
 </style>
 </head>
 <body>
@@ -151,6 +214,7 @@ legend{font-size:11px; color:var(--dim); padding:0 5px}
     <div class="tabs">
       <button data-tab="base" class="on">基底</button>
       <button data-tab="ops">操作</button>
+      <button data-tab="mem">记忆</button>
       <button data-tab="json">JSON</button>
       <button data-tab="help">说明</button>
     </div>
@@ -196,12 +260,52 @@ legend{font-size:11px; color:var(--dim); padding:0 5px}
     </div>
 
     <div class="tabBody" id="tab-ops" style="display:none">
+      <div id="suggestBox" style="display:none;margin-bottom:10px"></div>
       <div style="display:flex;gap:6px;margin-bottom:10px">
         <select id="selAddOp" style="flex:1;background:var(--panel2);border:1px solid var(--line);
           color:var(--text);border-radius:5px;padding:5px"></select>
         <button id="btnAddOp" class="primary">+ 添加</button>
       </div>
       <div id="opList"></div>
+    </div>
+
+    <div class="tabBody" id="tab-mem" style="display:none">
+      <div class="memStat" id="memStat"></div>
+
+      <div style="display:flex;gap:6px;margin-bottom:10px">
+        <button id="btnLearn" class="primary" style="flex:1">学习（从事件蒸馏）</button>
+        <button id="btnPrune">淘汰</button>
+      </div>
+
+      <div style="display:flex;gap:6px;margin-bottom:10px">
+        <button id="btnPortrait" style="flex:1">生成口味画像</button>
+        <button id="btnExportPack">导出口味包</button>
+      </div>
+
+      <div id="portraitBox" style="display:none;margin-bottom:12px">
+        <img id="portraitImg" style="width:100%;border-radius:8px;
+          border:1px solid var(--line);display:block">
+        <div style="font-size:10.5px;color:var(--dim);margin-top:5px"
+          id="portraitPath"></div>
+      </div>
+
+      <div style="display:flex;gap:6px;margin-bottom:10px">
+        <input type="text" id="memSearch" placeholder="搜索记忆…"
+          style="flex:1;background:var(--panel2);border:1px solid var(--line);
+          color:var(--text);border-radius:5px;padding:5px 8px;font-size:11.5px">
+        <button id="btnShowArchived">归档</button>
+      </div>
+
+      <div id="memTip" style="font-size:10.5px;color:var(--dim);margin-bottom:8px;
+        line-height:1.6"></div>
+
+      <div id="memList"></div>
+
+      <details style="margin-top:14px">
+        <summary style="cursor:pointer;font-size:11px;color:var(--dim);
+          padding:5px 0">最近事件</summary>
+        <div id="evList" style="margin-top:6px"></div>
+      </details>
     </div>
 
     <div class="tabBody" id="tab-json" style="display:none">
@@ -237,11 +341,19 @@ legend{font-size:11px; color:var(--dim); padding:0 5px}
       <input type="text" id="saveName" value="baseline_B.json" placeholder="文件名.json">
       <button class="primary" id="btnSave2">保存</button>
     </div>
+    <div style="padding:0 12px 10px;display:flex;gap:6px;background:var(--panel)">
+      <input type="text" id="regenReason" placeholder="不满意？写原因再重生成"
+        style="flex:1;background:var(--panel2);border:1px solid var(--line);
+        color:var(--text);border-radius:5px;padding:5px 8px;font-size:11px;min-width:0">
+      <button id="btnRegen" title="记录为负反馈并重渲染">重生成</button>
+    </div>
   </aside>
 </main>
 
 <script>
-const S = { env:null, recipe:null, refPath:"", selectedOp:-1, rendering:false, pending:false };
+const S = { env:null, recipe:null, refPath:"", selectedOp:-1, rendering:false,
+            pending:false, showArchived:false, memory:null,
+            lastSavedRecipeId:null, suggest:null };
 
 const OP_DEFS = {
   sticker:{
@@ -386,6 +498,7 @@ async function init(isReconnect){
   await loadRef();
   renderOpList();
   await doRender();
+  loadSuggest();
 }
 
 function newRecipe(subtype){
@@ -407,12 +520,29 @@ function bindUI(){
     b.onclick = () => {
       document.querySelectorAll(".tabs button").forEach(x => x.classList.remove("on"));
       b.classList.add("on");
-      ["base","ops","json","help"].forEach(t => {
+      ["base","ops","mem","json","help"].forEach(t => {
         $("tab-" + t).style.display = (t === b.dataset.tab) ? "" : "none";
       });
       if (b.dataset.tab === "json") syncJsonBox();
+      if (b.dataset.tab === "mem") loadMemory(S.showArchived);
+      if (b.dataset.tab === "ops") loadSuggest();
     };
   });
+
+  $("btnLearn").onclick = doLearn;
+  $("btnPrune").onclick = doPrune;
+  $("btnPortrait").onclick = showPortrait;
+  $("btnExportPack").onclick = exportPack;
+  $("memSearch").oninput = () => {
+    const d = S.memory || {};
+    renderMemList(d.memories || [], !!S.showArchived);
+  };
+  $("btnShowArchived").onclick = () => {
+    S.showArchived = !S.showArchived;
+    $("btnShowArchived").textContent = S.showArchived ? "返回活跃" : "归档";
+    $("btnShowArchived").style.background = S.showArchived ? "#2c4a7c" : "";
+    loadMemory(S.showArchived);
+  };
 
   $("selBase").onchange = doRender;
   $("selRef").onchange = loadRef;
@@ -464,6 +594,7 @@ function bindUI(){
 
   $("btnSave").onclick = saveRecipe;
   $("btnSave2").onclick = saveRecipe;
+  $("btnRegen").onclick = regenerate;
 
   $("btnReset").onclick = async () => {
     S.recipe = newRecipe($("selSubtype").value);
@@ -658,6 +789,7 @@ function bindFields(){
     const obj = path ? (op[path] = op[path] || {}) : op;
 
     const apply = (val) => {
+      const oldVal = obj[k];
       // 特殊字段：bulge_amount 映射到嵌套的 bulge 对象
       if (k === "bulge_amount"){
         if (Math.abs(val) < 0.005){
@@ -670,6 +802,15 @@ function bindFields(){
         if (inp.dataset.qi !== undefined) obj[k][+inp.dataset.qi][+inp.dataset.idx] = val;
         else obj[k][+inp.dataset.idx] = val;
       } else obj[k] = val;
+
+      // 记录参数修改事件（拖完松手才记，避免刷屏）
+      if (inp.type !== "range" && oldVal !== undefined && oldVal !== val){
+        recordParamChange(i, op.op, path ? `${path}.${k}` : k, oldVal, val);
+      } else if (inp.type === "range"){
+        pendingParamRecords.set(`${i}:${k}`, 
+          { index:i, op:op.op, path: path ? `${path}.${k}` : k, old: oldVal });
+      }
+
       const sib = inp.parentElement.querySelectorAll(`[data-k="${k}"]`);
       sib.forEach(s => { if (s !== inp && s.type !== "checkbox") s.value = val; });
       scheduleRender();
@@ -683,7 +824,7 @@ function bindFields(){
       };
     } else if (inp.type === "range"){
       inp.oninput = () => apply(+inp.value);
-      inp.onchange = () => doRender();
+      inp.onchange = () => { flushParamRecords(); doRender(); };
     } else if (inp.type === "number"){
       inp.onchange = () => apply(+inp.value);
     } else if (inp.tagName === "SELECT"){
@@ -791,7 +932,29 @@ async function saveRecipe(){
   });
   const d = await r.json();
   if (!r.ok){ flash(d.detail || "保存失败","err"); return; }
-  flash("已保存 → " + d.path,"ok");
+
+  // 记录 save 事件 —— 这是记忆系统最强的正信号
+  try {
+    await fetch("/api/memory/event", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({ kind:"save", recipe:S.recipe }),
+    });
+    S.lastSavedRecipeId = S.recipe.recipe_id;
+  } catch(_) { /* 事件记录失败不影响保存 */ }
+
+  flash("已保存 → " + d.path + "（已记入记忆）", "ok");
+}
+
+async function regenerate(){
+  // 重生成 = 负信号
+  try {
+    await fetch("/api/memory/event", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({ kind:"regenerate", recipe:S.recipe,
+                            reason: $("regenReason").value || "" }),
+    });
+  } catch(_) {}
+  await doRender();
 }
 
 function flash(msg,kind="ok"){
@@ -805,6 +968,328 @@ function flash(msg,kind="ok"){
 function esc(s){
   return String(s ?? "").replace(/[&<>"']/g, c =>
     ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+// ============================================================ 记忆面板 M4
+
+const pendingParamRecords = new Map();
+
+/** 记录参数修改事件（异步，失败不影响编辑）。 */
+function recordParamChange(opIndex, op, path, oldVal, newVal){
+  if (oldVal === newVal || oldVal === undefined) return;
+  fetch("/api/memory/event", {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({
+      kind:"param_change",
+      recipe: S.recipe,
+      payload:{ op_index: opIndex, op, path, old: oldVal, new: newVal },
+    }),
+  }).catch(() => {});
+}
+
+/** range 松开时统一提交（oninput 太频繁，会刷屏）。 */
+function flushParamRecords(){
+  for (const [, rec] of pendingParamRecords){
+    const op = S.recipe.ops[rec.index];
+    if (!op) continue;
+    const cur = rec.path.includes(".")
+      ? (op[rec.path.split(".")[0]] || {})[rec.path.split(".")[1]]
+      : op[rec.path];
+    if (cur !== undefined && cur !== rec.old){
+      recordParamChange(rec.index, rec.op, rec.path, rec.old, cur);
+    }
+  }
+  pendingParamRecords.clear();
+}
+
+const MEM_TYPE_NAME = {
+  combo:"组合", hand:"手感", caption:"配文",
+  base:"基底", asset:"素材", subtype_pref:"子类型",
+};
+
+async function loadMemory(showArchived){
+  const st = showArchived ? "archived" : "active";
+  const r = await fetch(`/api/memory?status=${st}`);
+  const d = await r.json();
+  if (!r.ok){ flash(d.detail || "读取记忆失败", "err"); return; }
+
+  S.memory = d;
+  renderMemStat(d.summary);
+  renderMemList(d.memories, showArchived);
+  loadEvents();
+}
+
+function renderMemStat(sum){
+  const s = sum.stats || {};
+  const by = s.by_type || {};
+  $("memStat").innerHTML = `
+    <div><div class="n">${s.active || 0}</div><div class="t">活跃记忆</div></div>
+    <div><div class="n">${s.archived || 0}</div><div class="t">已归档</div></div>
+    <div><div class="n">${((s.avg_confidence || 0) * 100).toFixed(0)}%</div>
+      <div class="t">平均置信度</div></div>
+    <div><div class="n">${sum.combo_count || 0}</div><div class="t">成功组合</div></div>`;
+
+  const parts = Object.entries(by).map(([k, v]) =>
+    `${MEM_TYPE_NAME[k] || k} ${v}`).join(" · ");
+  $("memTip").innerHTML = parts
+    ? `构成：${parts}<br>置信度低于 30% 会自动归档；手改过的条目不会被自动覆盖。`
+    : "还没有记忆。点「学习」从事件里蒸馏，或先在右边保存几张图。";
+}
+
+function renderMemList(items, showArchived){
+  const box = $("memList");
+  const q = ($("memSearch").value || "").trim().toLowerCase();
+  let list = items || [];
+  if (q){
+    list = list.filter(m =>
+      (m.key || "").toLowerCase().includes(q) ||
+      JSON.stringify(m.value || {}).toLowerCase().includes(q));
+  }
+  if (!list.length){
+    box.innerHTML = '<div class="empty">没有匹配的记忆</div>';
+    return;
+  }
+
+  const order = ["combo","subtype_pref","hand","caption","base","asset"];
+  list = [...list].sort((a,b) =>
+    (order.indexOf(a.type) - order.indexOf(b.type)) ||
+    ((b.confidence||0) - (a.confidence||0)));
+
+  box.innerHTML = list.map(m => {
+    const conf = m.confidence || 0;
+    const color = conf > 0.7 ? "var(--ok)" : (conf > 0.4 ? "var(--warn)" : "var(--err)");
+    const rows = memValueRows(m);
+    return `<div class="memCard" data-id="${m.id}">
+      <div class="memHead">
+        <span class="ty ${m.type}">${MEM_TYPE_NAME[m.type] || m.type}</span>
+        <span class="ky">${esc(m.key)}</span>
+        <span class="cf" style="color:${color}">${(conf*100).toFixed(0)}%</span>
+      </div>
+      <div class="memBody">
+        ${rows}
+        <div class="memRow"><span class="k">证据</span>
+          <span class="v">${m.evidence_count || 0} 次
+            (正 ${m.positive_count || 0} / 负 ${m.negative_count || 0})</span></div>
+        <div class="memRow"><span class="k">权重</span>
+          <span class="v">${(m.weight ?? 1).toFixed(2)}
+            ${m.hand_edited ? "· 手改过" : ""}</span></div>
+        <div class="memRow"><span class="k">条件</span>
+          <span class="v">${esc((m.conditions || []).join(", ") || "default")}</span></div>
+        <div class="memRow"><span class="k">确认时间</span>
+          <span class="v">${esc((m.last_confirmed || "").slice(0,16).replace("T"," "))}</span></div>
+        <div class="memActs">
+          ${showArchived
+            ? `<button data-restore="${m.id}">恢复</button>`
+            : `<button data-del="${m.id}" class="del">删除</button>`}
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+
+  box.querySelectorAll(".memHead").forEach(h => {
+    h.onclick = () => h.parentElement.classList.toggle("open");
+  });
+  box.querySelectorAll("[data-del]").forEach(b => {
+    b.onclick = async e => {
+      e.stopPropagation();
+      if (!confirm("删除这条记忆？系统会记下这次删除作为负证据。")) return;
+      await fetch("/api/memory/delete", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({memory_id:b.dataset.del}),
+      });
+      await loadMemory(false);
+      flash("已删除","ok");
+    };
+  });
+  box.querySelectorAll("[data-restore]").forEach(b => {
+    b.onclick = async e => {
+      e.stopPropagation();
+      await fetch("/api/memory/restore", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({memory_id:b.dataset.restore}),
+      });
+      await loadMemory(true);
+      flash("已恢复","ok");
+    };
+  });
+}
+
+function memValueRows(m){
+  const v = m.value;
+  if (v === null || v === undefined) return "";
+  if (typeof v !== "object"){
+    return `<div class="memRow"><span class="k">值</span>
+      <span class="v">${esc(v)}</span></div>`;
+  }
+  const skip = new Set(["memory_id"]);
+  return Object.entries(v).filter(([k]) => !skip.has(k)).map(([k, val]) =>
+    `<div class="memRow"><span class="k">${esc(k)}</span>
+      <span class="v">${esc(typeof val === "object"
+        ? JSON.stringify(val) : val)}</span></div>`).join("");
+}
+
+async function loadEvents(){
+  const r = await fetch("/api/memory/events?limit=15");
+  const d = await r.json();
+  if (!r.ok) return;
+  const box = $("evList");
+  if (!d.events || !d.events.length){
+    box.innerHTML = '<div class="empty" style="padding:10px">还没有事件</div>';
+    return;
+  }
+  box.innerHTML = d.events.map(e => {
+    const t = (e.ts || "").slice(11,19);
+    const pl = Object.entries(e.payload || {})
+      .filter(([k]) => !["recipe"].includes(k))
+      .map(([k,v]) => `${k}=${typeof v === "object" ? JSON.stringify(v) : v}`)
+      .join(" ")
+      .slice(0, 60);
+    return `<div class="evRow">
+      <span class="kd">${esc(e.kind)}</span>
+      <span class="ts">${esc(t)}</span>
+      <span class="pl">${esc(pl)}</span>
+    </div>`;
+  }).join("");
+}
+
+async function doLearn(){
+  const b = $("btnLearn");
+  b.disabled = true; b.textContent = "学习中…";
+  try {
+    const r = await fetch("/api/memory/learn", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({dry_run:false}),
+    });
+    const d = await r.json();
+    if (!r.ok){ flash(d.detail || "学习失败","err"); return; }
+    await loadMemory(false);
+    flash(`学习完成：候选 ${d.candidates} 条，写入 ${d.written} 条`, "ok");
+  } finally {
+    b.disabled = false; b.textContent = "学习（从事件蒸馏）";
+  }
+}
+
+async function doPrune(){
+  const r = await fetch("/api/memory/prune", {method:"POST"});
+  const d = await r.json();
+  await loadMemory(false);
+  const n = (d.archived || []).length;
+  flash(n ? `归档了 ${n} 条低置信记忆` : "没有需要归档的记忆", n ? "warn" : "ok");
+}
+
+async function showPortrait(){
+  const b = $("btnPortrait");
+  b.disabled = true; b.textContent = "生成中…";
+  try {
+    const r = await fetch("/api/memory/portrait", {method:"POST"});
+    const d = await r.json();
+    if (!r.ok){ flash(d.detail || "画像生成失败","err"); return; }
+
+    const r2 = await fetch("/api/memory/portrait.png");
+    const d2 = await r2.json();
+    $("portraitBox").style.display = "";
+    $("portraitImg").src = d2.png;
+    $("portraitPath").textContent = "已保存到 " + d.path;
+    $("portraitBox").scrollIntoView({behavior:"smooth", block:"nearest"});
+  } finally {
+    b.disabled = false; b.textContent = "生成口味画像";
+  }
+}
+
+// ============================================================ 建议（记忆 → 生成）
+
+async function loadSuggest(){
+  try {
+    const r = await fetch("/api/memory/suggest");
+    if (!r.ok) return;
+    const d = await r.json();
+    S.suggest = d;
+    renderSuggest(d);
+  } catch(_) {}
+}
+
+function renderSuggest(d){
+  const box = $("suggestBox");
+  const params = d.params || {};
+  const keys = Object.keys(params);
+  if (!keys.length && !d.default_subtype){
+    box.style.display = "none";
+    return;
+  }
+  box.style.display = "";
+
+  const rows = keys.slice(0, 5).map(k =>
+    `<div style="display:flex;gap:6px;font-size:10.5px;margin-top:3px">
+      <span style="flex:1;color:var(--dim);font-family:Consolas,monospace">${esc(k)}</span>
+      <span style="color:var(--text);font-family:Consolas,monospace">${esc(params[k])}</span>
+    </div>`).join("");
+
+  box.innerHTML = `
+    <div style="border:1px solid var(--line);border-radius:8px;background:var(--panel2);
+      padding:9px 10px">
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="font-size:11px;color:var(--accent)">记忆建议</span>
+        <span style="font-size:10px;color:var(--dim);flex:1">
+          ${d.why_count} 条依据</span>
+        <button id="btnApplySuggest"
+          style="padding:2px 8px;font-size:10.5px;border-radius:4px">套用</button>
+      </div>
+      ${d.default_subtype
+        ? `<div style="font-size:10.5px;color:var(--dim);margin-top:4px">
+             常用子类型：<b style="color:var(--text)">${esc(d.default_subtype)}</b></div>`
+        : ""}
+      ${rows}
+    </div>`;
+
+  const btn = $("btnApplySuggest");
+  if (btn) btn.onclick = applySuggest;
+}
+
+/** 把记忆建议套进当前配方。 */
+function applySuggest(){
+  const d = S.suggest;
+  if (!d) return;
+  let applied = 0;
+
+  for (const [key, val] of Object.entries(d.params || {})){
+    const [opName, ...rest] = key.split(".");
+    const param = rest.join(".");
+    const op = S.recipe.ops.find(o => o.op === opName);
+    if (!op) continue;
+    if (param.includes(".")){
+      const [p1, p2] = param.split(".");
+      if (!op[p1] || typeof op[p1] !== "object") op[p1] = {};
+      op[p1][p2] = val;
+    } else {
+      op[param] = val;
+    }
+    applied++;
+  }
+
+  if (d.default_subtype && !S.recipe.ops.length){
+    S.recipe.subtype = d.default_subtype;
+    $("selSubtype").value = d.default_subtype;
+    $("subtypeBadge").textContent =
+      {precise:"A 精贴",distort:"B 畸变",stack:"C 堆叠",rewear:"D 换装"}[d.default_subtype];
+  }
+
+  renderOpList(true);
+  doRender();
+  flash(applied ? `已套用 ${applied} 个参数` : "没有可套用的参数，先添加对应 op", 
+        applied ? "ok" : "warn");
+}
+
+async function exportPack(){
+  const r = await fetch("/api/memory/export");
+  if (!r.ok){ flash("导出失败","err"); return; }
+  const d = await r.json();
+  const blob = new Blob([JSON.stringify(d, null, 2)], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `口味包_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  flash(`已导出 ${d.memories.length} 条记忆 + ${d.asset_manifest.length} 个素材清单`, "ok");
 }
 
 init();
