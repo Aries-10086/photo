@@ -186,17 +186,26 @@ HAND_SKIP_PARAMS = {
     "text",
 }
 
+# 位置类参数：绝对坐标是「这张图特有」的，换图完全没用。
+# 学到它们等于污染记忆（学到了 center=[0.47,0.58]，换张图就不对）。
+# 注意：形状类（stretch_x / 宽高比）是通用的，不在这个集合里。
+HAND_SKIP_POSITION = {
+    "center", "target_box", "quad", "pos", "corner_offsets",
+}
+
 
 def _is_hand_param(op: str, path: str) -> bool:
     """判断某个 op 参数是否值得作为「手感」记忆。
 
     标准：它是**连续可调**的数值或明确的选择项，
-    且不是每次都会变的文本/标识。
+    且不是每次都会变的文本/标识/绝对位置。
     """
     key = f"{op}.{path}"
     if key in HAND_SKIP_PARAMS:
         return False
     if path in ("asset_id", "mask", "subject_mask"):
+        return False
+    if path in HAND_SKIP_POSITION:
         return False
     return True
 
@@ -262,12 +271,15 @@ def distill_hands(evs: list[dict]) -> list[dict]:
             for (op, path), v in base_vals.items():
                 if v is None or isinstance(v, (dict, list)):
                     continue
-                k = (op, path, repr(v))
+                # 字符串直接存原值（不加 repr 引号），其他类型存 repr。
+                # 有 type 标记，解析时能正确还原。
+                val_repr = str(v) if isinstance(v, str) else repr(v)
+                k = (op, path, val_repr, type(v).__name__)
                 adopted[k] += 1
                 ev_of.setdefault(k, e.get("id", ""))
 
     out = []
-    for (op, path, val_repr), n_saved in adopted.items():
+    for (op, path, val_repr, val_type), n_saved in adopted.items():
         n_changed = changed.get((op, path, val_repr), 0)
         # 证据 = 采纳次数 + 主动调整次数。
         # 每次保存都是独立确认（用户看着结果点了保存），都要计入。
@@ -275,7 +287,10 @@ def distill_hands(evs: list[dict]) -> list[dict]:
         out.append({
             "key": f"hand:{op}.{path}",
             "value": {
-                "op": op, "param_path": path, "value": val_repr,
+                "op": op, "param_path": path,
+                "value": val_repr,
+                # 类型标记：读值时按类型安全解析，不用 eval
+                "type": val_type,
                 "count": n_saved, "changes": n_changed,
             },
             "positive": evidence,

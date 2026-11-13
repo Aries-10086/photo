@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 
+import ast
 import copy
 import math
 import uuid
@@ -75,6 +76,59 @@ def _days_since(s: str) -> float:
 
 def _new_mem_id(mtype: str) -> str:
     return f"mem_{mtype}_{uuid.uuid4().hex[:8]}"
+
+
+# ---------------------------------------------------------------- 值解析
+
+
+def parse_value(raw: Any, type_name: str | None = None) -> Any:
+    """把记忆里存的字符串值解析回 Python 对象。
+
+    为什么不用 eval：
+        记忆文件（memory.yaml）设计上允许用户手改，
+        对不可信输入用 eval 是安全隐患，哪怕限制了 __builtins__。
+
+    解析策略：
+        1. 有 type 标记 → 按类型转换，失败则原样返回
+        2. 无 type 标记（老数据）→ 用 ast.literal_eval（只接受字面量，安全）
+        3. literal_eval 也失败 → 原样返回字符串，绝不抛错
+    """
+    if not isinstance(raw, str):
+        return raw
+
+    s = raw.strip()
+    if not s:
+        return raw
+
+    # 有类型标记：精确转换
+    if type_name:
+        try:
+            if type_name == "bool":
+                return s in ("True", "true", "1")
+            if type_name == "int":
+                return int(float(s))       # 容忍 "2.0" 这种
+            if type_name == "float":
+                return float(s)
+            if type_name == "str":
+                # 存的是 repr，去掉外层引号
+                return _strip_repr_quotes(s)
+            return raw
+        except (ValueError, TypeError):
+            return raw
+
+    # 老数据 / 无标记：只解析字面量
+    try:
+        v = ast.literal_eval(s)
+        return v
+    except (ValueError, SyntaxError, MemoryError, RecursionError):
+        return raw
+
+
+def _strip_repr_quotes(s: str) -> str:
+    """去掉 repr 产生的外层引号。"""
+    if len(s) >= 2 and s[0] == s[-1] and s[0] in ("'", '"'):
+        return s[1:-1]
+    return s
 
 
 # ---------------------------------------------------------------- 置信度模型

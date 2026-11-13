@@ -20,7 +20,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from core.memory import MemoryStore
+from core.memory import MemoryStore, parse_value
 
 
 @dataclass
@@ -138,10 +138,8 @@ def suggest(
         path = v.get("param_path")
         if not op or not path:
             continue
-        try:
-            val = eval(v.get("value"), {"__builtins__": {}}, {})  # noqa: S307
-        except Exception:  # noqa: BLE001
-            val = v.get("value")
+        # 安全解析：按 type 标记转换，老数据走 ast.literal_eval
+        val = parse_value(v.get("value"), v.get("type"))
         sug.params[f"{op}.{path}"] = val
         sug.items.append(Item(
             kind="param", key=f"{op}.{path}", value=val,
